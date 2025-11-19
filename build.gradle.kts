@@ -11,6 +11,7 @@ repositories {
 
 dependencies {
     implementation("io.netty:netty-all:4.2.7.Final")
+    implementation("com.google.code.gson:gson:2.13.2")
 
     compileOnly("org.projectlombok:lombok:1.18.42")
     annotationProcessor("org.projectlombok:lombok:1.18.42")
