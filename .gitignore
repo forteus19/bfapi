@@ -40,3 +40,5 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+/client_secret_DO_NOT_COMMIT.txt

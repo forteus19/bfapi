@@ -35,7 +35,7 @@ public final class BfApiHttpHandler extends SimpleChannelInboundHandler<FullHttp
 			);
 		};
 
-		response.headers().set(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
+		response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
 		if (keepAlive) {
 			response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
 			ctx.writeAndFlush(response);

@@ -64,4 +64,8 @@ public final class Util {
 		root.addProperty("error", errorId);
 		return jsonResponse(ctx, msg, status, root);
 	}
+
+	public static boolean isSuccess(int statusCode) {
+		return statusCode >= 200 && statusCode < 300;
+	}
 }
