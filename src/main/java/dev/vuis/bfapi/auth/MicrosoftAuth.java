@@ -19,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class MicrosoftAuth {
-    public static final String XBOX_LIVE_SCOPE = "XboxLive.signin offline_access";
+    public static final String XBOX_LIVE_SCOPE = "service::user.auth.xboxlive.com::MBI_SSL";
 
     private static final Random SECURE_RANDOM = new SecureRandom();
     private static final Base64.Encoder BASE_64_ENCODER = Base64.getUrlEncoder().withoutPadding();
@@ -29,29 +29,28 @@ public class MicrosoftAuth {
 
     private final String clientId;
     private final String clientSecret;
-    private final String tenantId;
     private final String redirectUri;
 
     private volatile String accessToken = null;
     private volatile String refreshToken = null;
     private volatile Instant expires = null;
 
-    public String getAuthUri(@NonNull String scope, @NonNull String state) {
-        return "https://login.microsoftonline.com/" + Util.urlEncode(tenantId) + "/oauth2/v2.0/authorize" +
+    public String getAuthUri(@NonNull String scope, String state) {
+        return "https://login.live.com/oauth20_authorize.srf" +
             "?client_id=" + Util.urlEncode(clientId) +
             "&response_type=code" +
             "&redirect_uri=" + Util.urlEncode(redirectUri) +
             "&response_mode=query" +
             "&scope=" + Util.urlEncode(scope) +
-            "&state=" + Util.urlEncode(state);
+            (state == null ? "" : "&state=" + Util.urlEncode(state));
     }
 
     public void redeemCode(@NonNull String code, boolean isRefresh) throws IOException, InterruptedException {
         log.info("Redeeming microsoft authentication code");
 
-        String uri = "https://login.microsoftonline.com/" + Util.urlEncode(tenantId) + "/oauth2/v2.0/token";
+        String uri = "https://login.live.com/oauth20_token.srf";
         String body = "client_id=" + Util.urlEncode(clientId) +
-            "&client_secret=" + Util.urlEncode(clientSecret) +
+            (clientSecret == null ? "" : "&client_secret=" + Util.urlEncode(clientSecret)) +
             "&grant_type=" + (isRefresh ? "refresh_token" : "authorization_code") +
             (isRefresh ? "&refresh_token=" : "&code=") + Util.urlEncode(code) +
             (isRefresh ? "" : "&redirect_uri=" + Util.urlEncode(redirectUri));

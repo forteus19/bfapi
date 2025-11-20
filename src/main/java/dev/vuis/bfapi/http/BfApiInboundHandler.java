@@ -1,6 +1,6 @@
 package dev.vuis.bfapi.http;
 
-import dev.vuis.bfapi.auth.MsCodeFuture;
+import dev.vuis.bfapi.auth.MsCodeWrapper;
 import dev.vuis.bfapi.util.Responses;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -19,7 +19,7 @@ import lombok.RequiredArgsConstructor;
 public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 	public static final String AUTH_CALLBACK_PATH = "/server_auth_callback";
 
-	private final MsCodeFuture msCodeFuture;
+	private final MsCodeWrapper msCodeWrapper;
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) {
@@ -27,13 +27,17 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		QueryStringDecoder qs = new QueryStringDecoder(msg.uri());
 		FullHttpResponse response = switch (qs.path()) {
-			case AUTH_CALLBACK_PATH -> serverAuthCallback(ctx, msg, qs);
-			default -> Responses.error(
+			case AUTH_CALLBACK_PATH -> msCodeWrapper != null ? serverAuthCallback(ctx, msg, qs) : null;
+			default -> null;
+		};
+
+		if (response == null) {
+			response = Responses.error(
 				ctx, msg,
 				HttpResponseStatus.NOT_FOUND,
 				"not_found"
 			);
-		};
+		}
 
 		response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
 		if (keepAlive) {
@@ -53,7 +57,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-		if (msCodeFuture.future().isDone()) {
+		if (msCodeWrapper.future().isDone()) {
 			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.FORBIDDEN,
@@ -77,7 +81,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		}
 
 		String state = qs.parameters().get("state").getFirst();
-		if (!state.equals(msCodeFuture.state())) {
+		if (!state.equals(msCodeWrapper.state())) {
 			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.FORBIDDEN,
@@ -86,7 +90,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		}
 
 		String code = qs.parameters().get("code").getFirst();
-		msCodeFuture.future().complete(code);
+		msCodeWrapper.future().complete(code);
 
 		return Responses.string(
 			ctx, msg,

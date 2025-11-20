@@ -34,7 +34,7 @@ public class XblAuth {
             root.add("Properties", Util.apply(new JsonObject(), properties -> {
                 properties.addProperty("AuthMethod", "RPS");
                 properties.addProperty("SiteName", "user.auth.xboxlive.com");
-                properties.addProperty("RpsTicket", "d=" + msToken);
+                properties.addProperty("RpsTicket", msToken);
             }));
             root.addProperty("RelyingParty", "http://auth.xboxlive.com");
             root.addProperty("TokenType", "JWT");
