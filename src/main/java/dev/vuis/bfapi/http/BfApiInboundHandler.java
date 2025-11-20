@@ -1,7 +1,7 @@
 package dev.vuis.bfapi.http;
 
 import dev.vuis.bfapi.auth.MsCodeFuture;
-import dev.vuis.bfapi.util.Util;
+import dev.vuis.bfapi.util.Responses;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -28,7 +28,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		QueryStringDecoder qs = new QueryStringDecoder(msg.uri());
 		FullHttpResponse response = switch (qs.path()) {
 			case AUTH_CALLBACK_PATH -> serverAuthCallback(ctx, msg, qs);
-			default -> Util.errorResponse(
+			default -> Responses.error(
 				ctx, msg,
 				HttpResponseStatus.NOT_FOUND,
 				"not_found"
@@ -46,7 +46,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 	private FullHttpResponse serverAuthCallback(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		if (msg.method() != HttpMethod.GET) {
-			return Util.errorResponse(
+			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.METHOD_NOT_ALLOWED,
 				"method_not_allowed"
@@ -54,7 +54,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		}
 
 		if (msCodeFuture.future().isDone()) {
-			return Util.errorResponse(
+			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.FORBIDDEN,
 				"already_authenticated"
@@ -62,14 +62,14 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		}
 
 		if (!qs.parameters().containsKey("code")) {
-			return Util.errorResponse(
+			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.BAD_REQUEST,
 				"missing_code"
 			);
 		}
 		if (!qs.parameters().containsKey("state")) {
-			return Util.errorResponse(
+			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.BAD_REQUEST,
 				"missing_state"
@@ -78,7 +78,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		String state = qs.parameters().get("state").getFirst();
 		if (!state.equals(msCodeFuture.state())) {
-			return Util.errorResponse(
+			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.FORBIDDEN,
 				"unexpected_state"
@@ -88,7 +88,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		String code = qs.parameters().get("code").getFirst();
 		msCodeFuture.future().complete(code);
 
-		return Util.stringResponse(
+		return Responses.string(
 			ctx, msg,
 			HttpResponseStatus.OK,
 			"Authentication completed"
