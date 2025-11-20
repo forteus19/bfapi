@@ -1,6 +1,5 @@
 package dev.vuis.bfapi.auth;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.vuis.bfapi.util.Util;
 import io.netty.handler.codec.http.HttpHeaderNames;
@@ -74,7 +73,7 @@ public class MicrosoftAuth {
         expires = Instant.now().plusSeconds(Math.max(json.get("expires_in").getAsLong() - 10, 0));
     }
 
-    public String getOrRefresh() throws IOException, InterruptedException {
+    public String tokenOrRefresh() throws IOException, InterruptedException {
         if (refreshToken == null) {
             throw new IllegalStateException("not authorized yet");
         }

@@ -1,8 +1,10 @@
 package dev.vuis.bfapi;
 
 import dev.vuis.bfapi.auth.MicrosoftAuth;
+import dev.vuis.bfapi.auth.MinecraftAuth;
 import dev.vuis.bfapi.auth.MsCodeFuture;
 import dev.vuis.bfapi.auth.XblAuth;
+import dev.vuis.bfapi.auth.XstsAuth;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
 import dev.vuis.bfapi.http.BfApiInboundHandler;
 import dev.vuis.bfapi.util.Util;
@@ -15,7 +17,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -57,8 +58,10 @@ public final class Main {
 		msAuth.redeemCode(msAuthorizationCode, false);
 
 		XblAuth xblAuth = new XblAuth(msAuth);
+		XstsAuth xstsAuth = new XstsAuth(xblAuth);
+		MinecraftAuth mcAuth = new MinecraftAuth(xstsAuth);
 
-		log.info(xblAuth.getOrRefresh());
+		log.info(mcAuth.tokenOrRefresh());
     }
 
 	private static void startHttpServer(MsCodeFuture msCodeFuture) {

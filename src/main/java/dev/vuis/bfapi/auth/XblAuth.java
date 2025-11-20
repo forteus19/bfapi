@@ -28,13 +28,13 @@ public class XblAuth {
     public void authenticate() throws IOException, InterruptedException {
         log.info("Authenticating xbox live");
 
-        String msToken = microsoftAuth.getOrRefresh();
+        String msToken = microsoftAuth.tokenOrRefresh();
 
         JsonObject bodyJson = Util.apply(new JsonObject(), root -> {
             root.add("Properties", Util.apply(new JsonObject(), properties -> {
                 properties.addProperty("AuthMethod", "RPS");
                 properties.addProperty("SiteName", "user.auth.xboxlive.com");
-                properties.addProperty("RpsTicket", msToken);
+                properties.addProperty("RpsTicket", "d=" + msToken);
             }));
             root.addProperty("RelyingParty", "http://auth.xboxlive.com");
             root.addProperty("TokenType", "JWT");
@@ -58,7 +58,7 @@ public class XblAuth {
         expires = Instant.parse(json.get("NotAfter").getAsString()).minusSeconds(10);
     }
 
-    public String getOrRefresh() throws IOException, InterruptedException {
+    public String tokenOrRefresh() throws IOException, InterruptedException {
         if (token == null || Instant.now().isAfter(expires)) {
             synchronized (refreshLock) {
                 log.info("Refreshing expired xbl token");
