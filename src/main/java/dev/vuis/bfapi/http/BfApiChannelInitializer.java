@@ -16,6 +16,6 @@ public final class BfApiChannelInitializer extends ChannelInitializer<SocketChan
 		ch.pipeline()
 			.addLast("codec", new HttpServerCodec())
 			.addLast("aggregator", new HttpObjectAggregator(65535))
-			.addLast("handler", new BfApiHttpHandler(msCodeFuture));
+			.addLast("handler", new BfApiInboundHandler(msCodeFuture));
 	}
 }

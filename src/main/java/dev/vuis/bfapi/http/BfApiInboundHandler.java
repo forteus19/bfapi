@@ -16,7 +16,7 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
-public final class BfApiHttpHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 	public static final String AUTH_CALLBACK_PATH = "/server_auth_callback";
 
 	private final MsCodeFuture msCodeFuture;

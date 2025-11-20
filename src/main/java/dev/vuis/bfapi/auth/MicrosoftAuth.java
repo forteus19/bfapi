@@ -15,7 +15,9 @@ import java.util.Base64;
 import java.util.Random;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RequiredArgsConstructor
 public class MicrosoftAuth {
     public static final String XBOX_LIVE_SCOPE = "XboxLive.signin offline_access";
@@ -77,6 +79,7 @@ public class MicrosoftAuth {
         }
         if (Instant.now().isAfter(expires)) {
             synchronized (refreshLock) {
+                log.info("Refreshing expired microsoft access token");
                 redeemCode(refreshToken, true);
             }
         }

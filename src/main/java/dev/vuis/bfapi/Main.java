@@ -3,7 +3,7 @@ package dev.vuis.bfapi;
 import dev.vuis.bfapi.auth.MicrosoftAuth;
 import dev.vuis.bfapi.auth.MsCodeFuture;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
-import dev.vuis.bfapi.http.BfApiHttpHandler;
+import dev.vuis.bfapi.http.BfApiInboundHandler;
 import dev.vuis.bfapi.util.Util;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.EventLoopGroup;
@@ -15,7 +15,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public final class Main {
 	private static final int PORT = Integer.parseInt(Util.getEnvOrThrow("PORT"));
 	private static final String MS_CLIENT_ID = Util.getEnvOrThrow("MS_CLIENT_ID");
@@ -30,6 +32,7 @@ public final class Main {
 		CompletableFuture<String> msCodeFuture = new CompletableFuture<>();
 		String msState = MicrosoftAuth.randomState();
 
+		log.info("Starting HTTP server");
 		startHttpServer(new MsCodeFuture(msCodeFuture, msState));
 
 		String msClientSecret;
@@ -42,10 +45,10 @@ public final class Main {
 			MS_CLIENT_ID,
 			msClientSecret,
 			MS_TENANT_ID,
-			MS_REDIRECT_HOST + BfApiHttpHandler.AUTH_CALLBACK_PATH
+			MS_REDIRECT_HOST + BfApiInboundHandler.AUTH_CALLBACK_PATH
 		);
 
-		System.out.println(msAuth.getAuthUri(MicrosoftAuth.XBOX_LIVE_SCOPE, msState));
+		log.info("Microsoft auth URL: {}", msAuth.getAuthUri(MicrosoftAuth.XBOX_LIVE_SCOPE, msState));
 
 		String msAuthorizationCode;
 		try {
@@ -55,8 +58,9 @@ public final class Main {
 		}
 
         try {
+			log.info("Redeeming microsoft authorization code");
             msAuth.redeemCode(msAuthorizationCode, false);
-			System.out.println(msAuth.getOrRefresh());
+			log.info("Access token: {}", msAuth.getOrRefresh());
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException(e);
         }
