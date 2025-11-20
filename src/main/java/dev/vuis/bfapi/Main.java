@@ -2,6 +2,7 @@ package dev.vuis.bfapi;
 
 import dev.vuis.bfapi.auth.MicrosoftAuth;
 import dev.vuis.bfapi.auth.MsCodeFuture;
+import dev.vuis.bfapi.auth.XblAuth;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
 import dev.vuis.bfapi.http.BfApiInboundHandler;
 import dev.vuis.bfapi.util.Util;
@@ -15,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -28,6 +30,7 @@ public final class Main {
     private Main() {
     }
 
+	@SneakyThrows
     public static void main(String[] args) {
 		CompletableFuture<String> msCodeFuture = new CompletableFuture<>();
 		String msState = MicrosoftAuth.randomState();
@@ -50,20 +53,12 @@ public final class Main {
 
 		log.info("Microsoft auth URL: {}", msAuth.getAuthUri(MicrosoftAuth.XBOX_LIVE_SCOPE, msState));
 
-		String msAuthorizationCode;
-		try {
-			msAuthorizationCode = msCodeFuture.get();
-		} catch (InterruptedException | ExecutionException e) {
-			throw new RuntimeException(e);
-		}
+		String msAuthorizationCode = msCodeFuture.get();
+		msAuth.redeemCode(msAuthorizationCode, false);
 
-        try {
-			log.info("Redeeming microsoft authorization code");
-            msAuth.redeemCode(msAuthorizationCode, false);
-			log.info("Access token: {}", msAuth.getOrRefresh());
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+		XblAuth xblAuth = new XblAuth(msAuth);
+
+		log.info(xblAuth.getOrRefresh());
     }
 
 	private static void startHttpServer(MsCodeFuture msCodeFuture) {

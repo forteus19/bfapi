@@ -1,5 +1,6 @@
 package dev.vuis.bfapi.util;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import io.netty.buffer.ByteBuf;
@@ -12,11 +13,19 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Consumer;
 import lombok.NonNull;
 
 public final class Util {
+	public static final Gson GSON = new Gson();
+
     private Util() {
     }
+
+	public static <T> T apply(T obj, Consumer<T> applier) {
+		applier.accept(obj);
+		return obj;
+	}
 
     public static String getEnvOrThrow(@NonNull String name) {
         String value = System.getenv(name);
@@ -46,7 +55,7 @@ public final class Util {
 	}
 
 	public static ByteBuf jsonBuf(ByteBufAllocator alloc, JsonElement json) {
-		return stringBuf(alloc, json.toString());
+		return stringBuf(alloc, GSON.toJson(json));
 	}
 
 	public static FullHttpResponse jsonResponse(ChannelHandlerContext ctx, FullHttpRequest msg, HttpResponseStatus status, JsonElement json) {

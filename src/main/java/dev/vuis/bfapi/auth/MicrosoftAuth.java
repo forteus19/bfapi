@@ -24,7 +24,6 @@ public class MicrosoftAuth {
 
     private static final Random SECURE_RANDOM = new SecureRandom();
     private static final Base64.Encoder BASE_64_ENCODER = Base64.getUrlEncoder().withoutPadding();
-    private static final Gson GSON = new Gson();
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final Object refreshLock = new Object();
@@ -49,6 +48,8 @@ public class MicrosoftAuth {
     }
 
     public void redeemCode(@NonNull String code, boolean isRefresh) throws IOException, InterruptedException {
+        log.info("Redeeming microsoft authentication code");
+
         String uri = "https://login.microsoftonline.com/" + Util.urlEncode(tenantId) + "/oauth2/v2.0/token";
         String body = "client_id=" + Util.urlEncode(clientId) +
             "&client_secret=" + Util.urlEncode(clientSecret) +
@@ -67,7 +68,7 @@ public class MicrosoftAuth {
             throw new RuntimeException("code redeem failed:\n" + response.body());
         }
 
-        JsonObject json = GSON.fromJson(response.body(), JsonObject.class);
+        JsonObject json = Util.GSON.fromJson(response.body(), JsonObject.class);
         accessToken = json.get("access_token").getAsString();
         refreshToken = json.get("refresh_token").getAsString();
         expires = Instant.now().plusSeconds(Math.max(json.get("expires_in").getAsLong() - 10, 0));
