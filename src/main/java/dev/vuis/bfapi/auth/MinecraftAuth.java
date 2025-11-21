@@ -29,7 +29,7 @@ public class MinecraftAuth {
 	private volatile Instant expires = null;
 
 	public void authenticate() throws IOException, InterruptedException {
-		log.info("Authenticating minecraft");
+		log.info("authenticating minecraft");
 
 		String xstsToken = xstsAuth.tokenOrRefresh();
 		String xstsUserHash = xstsAuth.userHashOrRefresh();
@@ -54,12 +54,14 @@ public class MinecraftAuth {
 		JsonObject json = Util.GSON.fromJson(response.body(), JsonObject.class);
 		token = json.get("access_token").getAsString();
 		expires = Instant.now().plusSeconds(Math.max(json.get("expires_in").getAsLong() - 10, 0));
+
+		log.info("authenticated minecraft successfully");
 	}
 
 	public String tokenOrRefresh() throws IOException, InterruptedException {
 		if (token == null || Instant.now().isAfter(expires)) {
 			synchronized (refreshLock) {
-				log.info("Refreshing expired minecraft token");
+				log.info("refreshing expired minecraft token");
 				authenticate();
 			}
 		}
@@ -67,7 +69,7 @@ public class MinecraftAuth {
 	}
 
 	public MinecraftProfile retrieveProfile() throws IOException, InterruptedException {
-		log.info("Retrieving minecraft profile");
+		log.info("retrieving minecraft profile");
 
 		String refreshedToken = tokenOrRefresh();
 

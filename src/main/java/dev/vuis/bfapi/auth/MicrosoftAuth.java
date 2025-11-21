@@ -46,7 +46,7 @@ public class MicrosoftAuth {
     }
 
     public void redeemCode(@NotNull String code, boolean isRefresh) throws IOException, InterruptedException {
-        log.info("Redeeming microsoft authentication code");
+        log.info("redeeming microsoft authentication code");
 
         String uri = "https://login.live.com/oauth20_token.srf";
         String body = "client_id=" + Util.urlEncode(clientId) +
@@ -70,6 +70,8 @@ public class MicrosoftAuth {
         accessToken = json.get("access_token").getAsString();
         refreshToken = json.get("refresh_token").getAsString();
         expires = Instant.now().plusSeconds(Math.max(json.get("expires_in").getAsLong() - 10, 0));
+
+		log.info("redeemed microsoft authentication code successfully");
     }
 
     public String tokenOrRefresh() throws IOException, InterruptedException {
@@ -78,7 +80,7 @@ public class MicrosoftAuth {
         }
         if (Instant.now().isAfter(expires)) {
             synchronized (refreshLock) {
-                log.info("Refreshing expired microsoft access token");
+                log.info("refreshing expired microsoft access token");
                 redeemCode(refreshToken, true);
             }
         }

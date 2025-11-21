@@ -38,7 +38,7 @@ public final class Main {
 
 	@SneakyThrows
     public static void main(String[] args) {
-		log.info("Starting HTTP server");
+		log.info("starting HTTP server");
 
 		CompletableFuture<String> msCodeFuture = null;
 		String msState = null;
@@ -64,11 +64,11 @@ public final class Main {
 			MS_REDIRECT_HOST + (MS_PASTE_REDIRECT ? "" : BfApiInboundHandler.AUTH_CALLBACK_PATH)
 		);
 
-		log.info("Microsoft auth URL: {}", msAuth.getAuthUri(MicrosoftAuth.XBOX_LIVE_SCOPE, msState));
+		log.info("microsoft auth URL: {}", msAuth.getAuthUri(MicrosoftAuth.XBOX_LIVE_SCOPE, msState));
 
 		String msAuthorizationCode;
 		if (MS_PASTE_REDIRECT) {
-			log.info("Paste redirected location:");
+			log.info("paste redirected location:");
 			String redirectInput = new Scanner(System.in).nextLine();
 			msAuthorizationCode = parseRedirectResult(redirectInput);
 		} else {

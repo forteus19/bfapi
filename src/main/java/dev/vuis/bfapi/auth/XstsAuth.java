@@ -28,7 +28,7 @@ public class XstsAuth {
 	private volatile Instant expires = null;
 
 	public void authenticate() throws IOException, InterruptedException {
-		log.info("Authenticating XSTS");
+		log.info("authenticating XSTS");
 
 		String xblToken = xblAuth.tokenOrRefresh();
 
@@ -63,12 +63,14 @@ public class XstsAuth {
 			.get(0).getAsJsonObject()
 			.get("uhs").getAsString();
 		expires = Instant.parse(json.get("NotAfter").getAsString()).minusSeconds(10);
+
+		log.info("authenticated XSTS successfully");
 	}
 
 	public String tokenOrRefresh() throws IOException, InterruptedException {
 		if (token == null || Instant.now().isAfter(expires)) {
 			synchronized (refreshLock) {
-				log.info("Refreshing expired xsts token");
+				log.info("refreshing expired xsts token");
 				authenticate();
 			}
 		}

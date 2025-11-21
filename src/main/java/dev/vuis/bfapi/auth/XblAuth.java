@@ -26,7 +26,7 @@ public class XblAuth {
     private volatile Instant expires = null;
 
     public void authenticate() throws IOException, InterruptedException {
-        log.info("Authenticating xbox live");
+        log.info("authenticating xbox live");
 
         String msToken = microsoftAuth.tokenOrRefresh();
 
@@ -56,12 +56,14 @@ public class XblAuth {
         JsonObject json = Util.GSON.fromJson(response.body(), JsonObject.class);
         token = json.get("Token").getAsString();
         expires = Instant.parse(json.get("NotAfter").getAsString()).minusSeconds(10);
+
+		log.info("authenticated xbox live successfully");
     }
 
     public String tokenOrRefresh() throws IOException, InterruptedException {
         if (token == null || Instant.now().isAfter(expires)) {
             synchronized (refreshLock) {
-                log.info("Refreshing expired xbl token");
+                log.info("refreshing expired xbl token");
                 authenticate();
             }
         }
