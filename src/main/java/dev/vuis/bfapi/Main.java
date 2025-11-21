@@ -29,6 +29,9 @@ public final class Main {
 	private static final String MS_CLIENT_SECRET_FILE = System.getenv("MS_CLIENT_SECRET_FILE");
 	private static final String MS_REDIRECT_HOST = Util.getEnvOrThrow("MS_REDIRECT_HOST");
 	private static final boolean MS_PASTE_REDIRECT = Boolean.parseBoolean(Util.getEnvOrThrow("MS_PASTE_REDIRECT"));
+	private static final String BF_VERSION = Util.getEnvOrThrow("BF_VERSION");
+	private static final String BF_VERSION_HASH = Util.getEnvOrThrow("BF_VERSION_HASH");
+	private static final String BF_HARDWARE_ID = Util.getEnvOrThrow("BF_HARDWARE_ID");
 
     private Main() {
     }

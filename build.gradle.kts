@@ -10,6 +10,8 @@ repositories {
 }
 
 dependencies {
+    compileOnly("org.jetbrains:annotations:26.0.2-1")
+
     implementation("org.slf4j:slf4j-api:2.0.17")
     implementation("org.apache.logging.log4j:log4j-api:2.25.2")
     runtimeOnly("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.2")
@@ -17,6 +19,9 @@ dependencies {
 
     implementation("io.netty:netty-all:4.2.7.Final")
     implementation("com.google.code.gson:gson:2.13.2")
+    implementation("it.unimi.dsi:fastutil:8.5.18")
+
+    implementation(files("libs/com.boehmod.blockfront.BlockFrontLibrary-6.0.2.jar"))
 
     compileOnly("org.projectlombok:lombok:1.18.42")
     annotationProcessor("org.projectlombok:lombok:1.18.42")

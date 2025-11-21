@@ -12,9 +12,9 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Random;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -35,7 +35,7 @@ public class MicrosoftAuth {
     private volatile String refreshToken = null;
     private volatile Instant expires = null;
 
-    public String getAuthUri(@NonNull String scope, String state) {
+    public String getAuthUri(@NotNull String scope, String state) {
         return "https://login.live.com/oauth20_authorize.srf" +
             "?client_id=" + Util.urlEncode(clientId) +
             "&response_type=code" +
@@ -45,7 +45,7 @@ public class MicrosoftAuth {
             (state == null ? "" : "&state=" + Util.urlEncode(state));
     }
 
-    public void redeemCode(@NonNull String code, boolean isRefresh) throws IOException, InterruptedException {
+    public void redeemCode(@NotNull String code, boolean isRefresh) throws IOException, InterruptedException {
         log.info("Redeeming microsoft authentication code");
 
         String uri = "https://login.live.com/oauth20_token.srf";
