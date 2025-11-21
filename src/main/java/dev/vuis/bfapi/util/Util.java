@@ -47,4 +47,19 @@ public final class Util {
     public static String getUndashedUuid(@NotNull UUID uuid) {
         return "%016x%016x".formatted(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
     }
+
+	public static byte[] parseHexArray(@NotNull String str) {
+		if (str.length() % 2 != 0) {
+			throw new IllegalArgumentException("invalid hex string");
+		}
+
+		int resultLen = str.length() / 2;
+		byte[] result = new byte[resultLen];
+		for (int i = 0; i < resultLen; i++) {
+			int s = i * 2;
+			result[i] = (byte) Integer.parseUnsignedInt(str.substring(s, s + 2), 16);
+		}
+
+		return result;
+	}
 }

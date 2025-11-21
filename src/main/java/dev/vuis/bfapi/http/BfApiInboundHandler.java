@@ -1,6 +1,7 @@
 package dev.vuis.bfapi.http;
 
 import dev.vuis.bfapi.auth.MsCodeWrapper;
+import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.util.Responses;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -20,6 +21,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	public static final String AUTH_CALLBACK_PATH = "/server_auth_callback";
 
 	private final MsCodeWrapper msCodeWrapper;
+	public BfConnection connection = null;
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) {

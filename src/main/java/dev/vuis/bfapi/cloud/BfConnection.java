@@ -45,7 +45,7 @@ public class BfConnection extends Connection<BfPlayerData> {
         log.info("connecting to cloud at {}", address);
 
         Bootstrap bootstrap = new Bootstrap()
-            .group(new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory()))
+            .group(new MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory()))
             .channel(NioSocketChannel.class)
             .option(ChannelOption.TCP_NODELAY, true)
             .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30_000)

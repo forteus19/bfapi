@@ -5,6 +5,8 @@ import dev.vuis.bfapi.auth.MinecraftAuth;
 import dev.vuis.bfapi.auth.MsCodeWrapper;
 import dev.vuis.bfapi.auth.XblAuth;
 import dev.vuis.bfapi.auth.XstsAuth;
+import dev.vuis.bfapi.cloud.BfConnection;
+import dev.vuis.bfapi.data.MinecraftProfile;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
 import dev.vuis.bfapi.http.BfApiInboundHandler;
 import dev.vuis.bfapi.util.Util;
@@ -15,6 +17,7 @@ import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Scanner;
@@ -24,6 +27,8 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public final class Main {
+	private static final InetSocketAddress BF_CLOUD_ADDRESS = new InetSocketAddress("cloud.blockfrontmc.com", 1924);
+
 	private static final int PORT = Integer.parseInt(Util.getEnvOrThrow("PORT"));
 	private static final String MS_CLIENT_ID = Util.getEnvOrThrow("MS_CLIENT_ID");
 	private static final String MS_CLIENT_SECRET_FILE = System.getenv("MS_CLIENT_SECRET_FILE");
@@ -31,7 +36,9 @@ public final class Main {
 	private static final boolean MS_PASTE_REDIRECT = Boolean.parseBoolean(Util.getEnvOrThrow("MS_PASTE_REDIRECT"));
 	private static final String BF_VERSION = Util.getEnvOrThrow("BF_VERSION");
 	private static final String BF_VERSION_HASH = Util.getEnvOrThrow("BF_VERSION_HASH");
-	private static final String BF_HARDWARE_ID = Util.getEnvOrThrow("BF_HARDWARE_ID");
+	private static final byte[] BF_HARDWARE_ID = Util.parseHexArray(Util.getEnvOrThrow("BF_HARDWARE_ID"));
+
+	private static BfApiInboundHandler inboundHandler = null;
 
     private Main() {
     }
@@ -48,7 +55,7 @@ public final class Main {
 			msState = MicrosoftAuth.randomState();
 			msCodeWrapper = new MsCodeWrapper(msCodeFuture, msState);
 		}
-		startHttpServer(msCodeWrapper);
+		channel = startHttpServer(msCodeWrapper);
 
 		String msClientSecret = null;
 		if (MS_CLIENT_SECRET_FILE != null) {
@@ -79,17 +86,22 @@ public final class Main {
 		XblAuth xblAuth = new XblAuth(msAuth);
 		XstsAuth xstsAuth = new XstsAuth(xblAuth);
 		MinecraftAuth mcAuth = new MinecraftAuth(xstsAuth);
+		MinecraftProfile mcProfile = mcAuth.retrieveProfile();
 
-		log.info(mcAuth.tokenOrRefresh());
+		BfConnection connection = new BfConnection(mcProfile, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
+		connection.connect(BF_CLOUD_ADDRESS);
+
+		inboundHandler.connection = connection;
     }
 
 	private static void startHttpServer(MsCodeWrapper msCodeWrapper) {
 		EventLoopGroup elg = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
 
+		inboundHandler = new BfApiInboundHandler(msCodeWrapper);
 		ServerBootstrap bootstrap = new ServerBootstrap()
 			.group(elg)
 			.channel(NioServerSocketChannel.class)
-			.childHandler(new BfApiChannelInitializer(msCodeWrapper));
+			.childHandler(new BfApiChannelInitializer(inboundHandler));
 
 		bootstrap.bind(PORT).syncUninterruptibly();
 	}
