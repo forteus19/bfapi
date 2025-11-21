@@ -49,7 +49,7 @@ public class BfConnection extends Connection<BfPlayerData> {
             .channel(NioSocketChannel.class)
             .option(ChannelOption.TCP_NODELAY, true)
             .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30_000)
-            .handler(new BfCloudChannelInitializer());
+            .handler(new BfCloudChannelInitializer(this));
 
         bootstrap.connect(address).addListener((ChannelFutureListener) channelFuture -> {
             if (channelFuture.isSuccess()) {
@@ -74,7 +74,7 @@ public class BfConnection extends Connection<BfPlayerData> {
         log.info("sending cloud credentials");
 
         EncryptedConnectionCredentials credentials = new EncryptedConnectionCredentials(
-            ConnectionType.PLAYER,
+            getType(),
             mcProfile.uuid(),
             mcProfile.username(),
             version,
@@ -145,7 +145,7 @@ public class BfConnection extends Connection<BfPlayerData> {
 
     @Override
     public @NotNull ConnectionType getType() {
-        throw new AssertionError();
+        return ConnectionType.PLAYER;
     }
 
     @Override
