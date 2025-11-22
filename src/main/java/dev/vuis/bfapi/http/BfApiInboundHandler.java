@@ -5,6 +5,7 @@ import dev.vuis.bfapi.auth.MsCodeWrapper;
 import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.util.Responses;
+import dev.vuis.bfapi.util.Util;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -17,6 +18,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.QueryStringDecoder;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -137,10 +139,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-		UUID uuid;
-		try {
-			uuid = UUID.fromString(qs.parameters().get("uuid").getFirst());
-		} catch (Exception e) {
+		Optional<UUID> uuid = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
+		if (uuid.isEmpty()) {
 			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.BAD_REQUEST,
@@ -148,7 +148,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-		CompletableFuture<JsonObject> data = connection.dataCache.getPlayerData(uuid).thenApply(BfPlayerData::serialize);
+		CompletableFuture<JsonObject> data = connection.dataCache.getPlayerData(uuid.orElseThrow()).thenApply(BfPlayerData::serialize);
         try {
             return Responses.json(
                 ctx, msg,

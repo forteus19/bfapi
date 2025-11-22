@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -54,6 +55,18 @@ public final class Util {
 
 	public static boolean isSuccess(int statusCode) {
 		return statusCode >= 200 && statusCode < 300;
+	}
+
+	public static Optional<UUID> parseUuidLenient(@NotNull String str) {
+		try {
+			return Optional.of(UUID.fromString(str));
+		} catch (Exception e1) {
+			try {
+				return Optional.of(parseUndashedUuid(str));
+			} catch (Exception e2) {
+				return Optional.empty();
+			}
+		}
 	}
 
     public static UUID parseUndashedUuid(@NotNull String str) {
