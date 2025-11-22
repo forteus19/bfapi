@@ -18,6 +18,7 @@ dependencies {
     runtimeOnly("org.apache.logging.log4j:log4j-core:2.25.2")
 
     implementation("io.netty:netty-all:4.2.7.Final")
+    implementation("com.google.guava:guava:33.5.0-jre")
     implementation("com.google.code.gson:gson:2.13.2")
     implementation("it.unimi.dsi:fastutil:8.5.18")
 

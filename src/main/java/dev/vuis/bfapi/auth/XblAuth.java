@@ -39,7 +39,7 @@ public class XblAuth {
             root.addProperty("RelyingParty", "http://auth.xboxlive.com");
             root.addProperty("TokenType", "JWT");
         });
-        String body = Util.GSON.toJson(bodyJson);
+        String body = Util.COMPACT_GSON.toJson(bodyJson);
 
         HttpRequest request = HttpRequest.newBuilder()
             .uri(AUTHENTICATE_URI)
@@ -53,7 +53,7 @@ public class XblAuth {
             throw new RuntimeException("xbl authentication failed (" + response.statusCode() + "):\n" + response.body());
         }
 
-        JsonObject json = Util.GSON.fromJson(response.body(), JsonObject.class);
+        JsonObject json = Util.COMPACT_GSON.fromJson(response.body(), JsonObject.class);
         token = json.get("Token").getAsString();
         expires = Instant.parse(json.get("NotAfter").getAsString()).minusSeconds(10);
 

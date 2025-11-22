@@ -5,6 +5,7 @@ import dev.vuis.bfapi.auth.MinecraftAuth;
 import dev.vuis.bfapi.auth.MsCodeWrapper;
 import dev.vuis.bfapi.auth.XblAuth;
 import dev.vuis.bfapi.auth.XstsAuth;
+import dev.vuis.bfapi.cloud.BfCloudPacketHandlers;
 import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.data.MinecraftProfile;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
@@ -55,7 +56,7 @@ public final class Main {
 			msState = MicrosoftAuth.randomState();
 			msCodeWrapper = new MsCodeWrapper(msCodeFuture, msState);
 		}
-		channel = startHttpServer(msCodeWrapper);
+		startHttpServer(msCodeWrapper);
 
 		String msClientSecret = null;
 		if (MS_CLIENT_SECRET_FILE != null) {
@@ -88,7 +89,8 @@ public final class Main {
 		MinecraftAuth mcAuth = new MinecraftAuth(xstsAuth);
 		MinecraftProfile mcProfile = mcAuth.retrieveProfile();
 
-		BfConnection connection = new BfConnection(mcProfile, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
+		BfCloudPacketHandlers.register();
+		BfConnection connection = new BfConnection(mcAuth, mcProfile, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
 		connection.connect(BF_CLOUD_ADDRESS);
 
 		inboundHandler.connection = connection;

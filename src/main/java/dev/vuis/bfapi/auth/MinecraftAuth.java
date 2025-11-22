@@ -37,7 +37,7 @@ public class MinecraftAuth {
 		JsonObject bodyJson = Util.apply(new JsonObject(), root -> {
 			root.addProperty("identityToken", "XBL3.0 x=" + xstsUserHash + ";" + xstsToken);
 		});
-		String body = Util.GSON.toJson(bodyJson);
+		String body = Util.COMPACT_GSON.toJson(bodyJson);
 
 		HttpRequest request = HttpRequest.newBuilder()
 			.uri(AUTHENTICATE_URI)
@@ -51,7 +51,7 @@ public class MinecraftAuth {
 			throw new RuntimeException("xsts authentication failed (" + response.statusCode() + "):\n" + response.body());
 		}
 
-		JsonObject json = Util.GSON.fromJson(response.body(), JsonObject.class);
+		JsonObject json = Util.COMPACT_GSON.fromJson(response.body(), JsonObject.class);
 		token = json.get("access_token").getAsString();
 		expires = Instant.now().plusSeconds(Math.max(json.get("expires_in").getAsLong() - 10, 0));
 
@@ -84,7 +84,7 @@ public class MinecraftAuth {
 			throw new RuntimeException("xsts authentication failed (" + response.statusCode() + "):\n" + response.body());
 		}
 
-		JsonObject json = Util.GSON.fromJson(response.body(), JsonObject.class);
+		JsonObject json = Util.COMPACT_GSON.fromJson(response.body(), JsonObject.class);
 		return new MinecraftProfile(
 			Util.parseUndashedUuid(json.get("id").getAsString()),
 			json.get("name").getAsString()
@@ -92,7 +92,7 @@ public class MinecraftAuth {
 	}
 
 	public void joinServer(MinecraftProfile profile, String serverId) throws IOException, InterruptedException {
-		log.info("Joining session server");
+		log.info("joining session server");
 
 		String refreshedToken = tokenOrRefresh();
 
@@ -101,7 +101,7 @@ public class MinecraftAuth {
 			root.addProperty("selectedProfile", Util.getUndashedUuid(profile.uuid()));
 			root.addProperty("serverId", serverId);
 		});
-		String body = Util.GSON.toJson(bodyJson);
+		String body = Util.COMPACT_GSON.toJson(bodyJson);
 
 		HttpRequest request = HttpRequest.newBuilder()
 			.uri(JOIN_SERVER_URI)

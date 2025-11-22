@@ -1,21 +1,43 @@
 package dev.vuis.bfapi.util;
 
+import com.google.gson.FormattingStyle;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public final class Util {
-	public static final Gson GSON = new Gson();
+	public static final String UUID_PATTERN = "[0-9a-fA-F]{8}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{12}";
+	public static final Gson COMPACT_GSON = new GsonBuilder()
+		.setFormattingStyle(FormattingStyle.COMPACT)
+		.create();
+	public static final Gson PRETTY_GSON = new GsonBuilder()
+		.setFormattingStyle(FormattingStyle.PRETTY)
+		.create();
 
     private Util() {
     }
 
+	public static Gson gson(boolean pretty) {
+		return pretty ? PRETTY_GSON : COMPACT_GSON;
+	}
+
 	public static <T> T apply(T obj, Consumer<T> applier) {
 		applier.accept(obj);
 		return obj;
+	}
+
+	public static <T, R> R ifNonNull(@Nullable T obj, Function<T, R> applier) {
+		if (obj != null) {
+			return applier.apply(obj);
+		} else {
+			return null;
+		}
 	}
 
     public static String getEnvOrThrow(@NotNull String name) {
@@ -45,7 +67,7 @@ public final class Util {
     }
 
     public static String getUndashedUuid(@NotNull UUID uuid) {
-        return "%016x%016x".formatted(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
+        return uuid.toString().replace("-", "");
     }
 
 	public static byte[] parseHexArray(@NotNull String str) {

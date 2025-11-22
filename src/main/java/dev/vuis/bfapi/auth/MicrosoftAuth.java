@@ -66,7 +66,7 @@ public class MicrosoftAuth {
             throw new RuntimeException("code redeem failed:\n" + response.body());
         }
 
-        JsonObject json = Util.GSON.fromJson(response.body(), JsonObject.class);
+        JsonObject json = Util.COMPACT_GSON.fromJson(response.body(), JsonObject.class);
         accessToken = json.get("access_token").getAsString();
         refreshToken = json.get("refresh_token").getAsString();
         expires = Instant.now().plusSeconds(Math.max(json.get("expires_in").getAsLong() - 10, 0));

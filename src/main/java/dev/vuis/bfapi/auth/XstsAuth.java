@@ -42,7 +42,7 @@ public class XstsAuth {
 			root.addProperty("RelyingParty", "rp://api.minecraftservices.com/");
 			root.addProperty("TokenType", "JWT");
 		});
-		String body = Util.GSON.toJson(bodyJson);
+		String body = Util.COMPACT_GSON.toJson(bodyJson);
 
 		HttpRequest request = HttpRequest.newBuilder()
 			.uri(AUTHORIZE_URI)
@@ -56,7 +56,7 @@ public class XstsAuth {
 			throw new RuntimeException("xsts authentication failed (" + response.statusCode() + "):\n" + response.body());
 		}
 
-		JsonObject json = Util.GSON.fromJson(response.body(), JsonObject.class);
+		JsonObject json = Util.COMPACT_GSON.fromJson(response.body(), JsonObject.class);
 		token = json.get("Token").getAsString();
 		userHash = json.get("DisplayClaims").getAsJsonObject()
 			.get("xui").getAsJsonArray()

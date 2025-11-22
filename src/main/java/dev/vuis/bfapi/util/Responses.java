@@ -21,8 +21,8 @@ public final class Responses {
         return alloc.buffer(b.length).writeBytes(b);
     }
 
-    public static ByteBuf jsonBuf(ByteBufAllocator alloc, JsonElement json) {
-        return stringBuf(alloc, Util.GSON.toJson(json));
+    public static ByteBuf jsonBuf(ByteBufAllocator alloc, JsonElement json, boolean pretty) {
+        return stringBuf(alloc, Util.gson(pretty).toJson(json));
     }
 
     public static FullHttpResponse string(ChannelHandlerContext ctx, FullHttpRequest msg, HttpResponseStatus status, String str) {
@@ -35,11 +35,11 @@ public final class Responses {
         return response;
     }
 
-    public static FullHttpResponse json(ChannelHandlerContext ctx, FullHttpRequest msg, HttpResponseStatus status, JsonElement json) {
+    public static FullHttpResponse json(ChannelHandlerContext ctx, FullHttpRequest msg, HttpResponseStatus status, JsonElement json, boolean pretty) {
         FullHttpResponse response = new DefaultFullHttpResponse(
             msg.protocolVersion(),
             status,
-            jsonBuf(ctx.alloc(), json)
+            jsonBuf(ctx.alloc(), json, pretty)
         );
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json; charset=utf-8");
         return response;
@@ -48,6 +48,6 @@ public final class Responses {
     public static FullHttpResponse error(ChannelHandlerContext ctx, FullHttpRequest msg, HttpResponseStatus status, String errorId) {
         JsonObject root = new JsonObject();
         root.addProperty("error", errorId);
-        return json(ctx, msg, status, root);
+        return json(ctx, msg, status, root, false);
     }
 }
