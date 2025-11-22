@@ -17,52 +17,52 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public final class BfCloudPacketHandlers {
-    private BfCloudPacketHandlers() {
-    }
+	private BfCloudPacketHandlers() {
+	}
 
-    public static void register() {
-        registerPacketHandler(PacketNotificationFromCloud.class, BfCloudPacketHandlers::notificationFromCloud);
-        registerPacketHandler(PacketRequestedPlayerData.class, BfCloudPacketHandlers::requestedPlayerData);
-        registerPacketHandler(PacketRequestedPlayerDataSet.class, BfCloudPacketHandlers::requestedPlayerDataSet);
-        registerPacketHandler(PacketServerNotification.class, BfCloudPacketHandlers::serverNotification);
-    }
+	public static void register() {
+		registerPacketHandler(PacketNotificationFromCloud.class, BfCloudPacketHandlers::notificationFromCloud);
+		registerPacketHandler(PacketRequestedPlayerData.class, BfCloudPacketHandlers::requestedPlayerData);
+		registerPacketHandler(PacketRequestedPlayerDataSet.class, BfCloudPacketHandlers::requestedPlayerDataSet);
+		registerPacketHandler(PacketServerNotification.class, BfCloudPacketHandlers::serverNotification);
+	}
 
-    private static <P extends IPacket> void registerPacketHandler(Class<P> packetClass, IPacketHandlerFunction<P, BfConnection> packetHandler) {
-        PacketRegistry.registerPacketHandler(packetClass, packetHandler, BfConnection.class);
-    }
+	private static <P extends IPacket> void registerPacketHandler(Class<P> packetClass, IPacketHandlerFunction<P, BfConnection> packetHandler) {
+		PacketRegistry.registerPacketHandler(packetClass, packetHandler, BfConnection.class);
+	}
 
-    public static void notificationFromCloud(PacketNotificationFromCloud packet, BfConnection connection) {
-        log.info("cloud notification: {}", packet.message());
-    }
+	public static void notificationFromCloud(PacketNotificationFromCloud packet, BfConnection connection) {
+		log.info("cloud notification: {}", packet.message());
+	}
 
-    public static void requestedPlayerData(PacketRequestedPlayerData packet, BfConnection connection) {
-        handlePlayerData(packet.uuid(), packet.context(), packet.data(), connection);
-    }
+	public static void requestedPlayerData(PacketRequestedPlayerData packet, BfConnection connection) {
+		handlePlayerData(packet.uuid(), packet.context(), packet.data(), connection);
+	}
 
-    public static void requestedPlayerDataSet(PacketRequestedPlayerDataSet packet, BfConnection connection) {
-        for (Map.Entry<UUID, Pair<PlayerDataContext, byte[]>> entry : packet.dataSet().entrySet()) {
-            handlePlayerData(entry.getKey(), entry.getValue().left(), entry.getValue().right(), connection);
-        }
-    }
+	public static void requestedPlayerDataSet(PacketRequestedPlayerDataSet packet, BfConnection connection) {
+		for (Map.Entry<UUID, Pair<PlayerDataContext, byte[]>> entry : packet.dataSet().entrySet()) {
+			handlePlayerData(entry.getKey(), entry.getValue().left(), entry.getValue().right(), connection);
+		}
+	}
 
-    public static void serverNotification(PacketServerNotification packet, BfConnection connection) {
-        log.info("server notification: {}", packet.message());
-    }
+	public static void serverNotification(PacketServerNotification packet, BfConnection connection) {
+		log.info("server notification: {}", packet.message());
+	}
 
-    private static void handlePlayerData(UUID uuid, PlayerDataContext context, byte[] data, BfConnection connection) {
-        BfPlayerData playerData = new BfPlayerData(uuid);
-        ByteBuf buf = Unpooled.wrappedBuffer(data);
+	private static void handlePlayerData(UUID uuid, PlayerDataContext context, byte[] data, BfConnection connection) {
+		BfPlayerData playerData = new BfPlayerData(uuid);
+		ByteBuf buf = Unpooled.wrappedBuffer(data);
 
-        try {
-            playerData.read(context, buf);
-        } catch (Exception e) {
-            log.error("failed to read player data", e);
-            connection.dataCache.completePlayerData(uuid, e);
-            return;
-        } finally {
-            buf.release();
-        }
+		try {
+			playerData.read(context, buf);
+		} catch (Exception e) {
+			log.error("failed to read player data", e);
+			connection.dataCache.completePlayerData(uuid, e);
+			return;
+		} finally {
+			buf.release();
+		}
 
-        connection.dataCache.completePlayerData(uuid, playerData);
-    }
+		connection.dataCache.completePlayerData(uuid, playerData);
+	}
 }

@@ -41,11 +41,11 @@ public final class Main {
 
 	private static BfApiInboundHandler inboundHandler = null;
 
-    private Main() {
-    }
+	private Main() {
+	}
 
 	@SneakyThrows
-    public static void main(String[] args) {
+	public static void main(String[] args) {
 		log.info("starting HTTP server");
 
 		CompletableFuture<String> msCodeFuture = null;
@@ -66,7 +66,7 @@ public final class Main {
 				throw new RuntimeException(e);
 			}
 		}
-        MicrosoftAuth msAuth = new MicrosoftAuth(
+		MicrosoftAuth msAuth = new MicrosoftAuth(
 			MS_CLIENT_ID,
 			msClientSecret,
 			MS_REDIRECT_HOST + (MS_PASTE_REDIRECT ? "" : BfApiInboundHandler.AUTH_CALLBACK_PATH)
@@ -94,7 +94,7 @@ public final class Main {
 		connection.connect(BF_CLOUD_ADDRESS);
 
 		inboundHandler.connection = connection;
-    }
+	}
 
 	private static void startHttpServer(MsCodeWrapper msCodeWrapper) {
 		EventLoopGroup elg = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());

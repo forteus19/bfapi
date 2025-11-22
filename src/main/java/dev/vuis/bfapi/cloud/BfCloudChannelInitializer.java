@@ -9,16 +9,16 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class BfCloudChannelInitializer extends ChannelInitializer<SocketChannel> {
-    private final BfConnection connection;
+	private final BfConnection connection;
 
-    @Override
-    protected void initChannel(SocketChannel ch) {
-        ch.pipeline()
-            .addLast("idleStateHandler", new IdleStateHandler(30, 0, 0, TimeUnit.SECONDS))
-            .addLast("frameDecoder", PacketCodec.createFrameDecoder())
-            .addLast("frameEncoder", PacketCodec.createFrameEncoder())
-            .addLast("packetDecoder", new PacketCodec.PacketDecoder())
-            .addLast("packetEncoder", new PacketCodec.PacketEncoder())
-            .addLast("handler", new BfCloudInboundHandler(connection));
-    }
+	@Override
+	protected void initChannel(SocketChannel ch) {
+		ch.pipeline()
+			.addLast("idleStateHandler", new IdleStateHandler(30, 0, 0, TimeUnit.SECONDS))
+			.addLast("frameDecoder", PacketCodec.createFrameDecoder())
+			.addLast("frameEncoder", PacketCodec.createFrameEncoder())
+			.addLast("packetDecoder", new PacketCodec.PacketDecoder())
+			.addLast("packetEncoder", new PacketCodec.PacketEncoder())
+			.addLast("handler", new BfCloudInboundHandler(connection));
+	}
 }

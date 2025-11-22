@@ -46,219 +46,219 @@ import org.jetbrains.annotations.Nullable;
 
 @Slf4j
 public class BfConnection extends Connection<BfPlayerData> {
-    private static final Random SECURE_RANDOM = new SecureRandom();
+	private static final Random SECURE_RANDOM = new SecureRandom();
 
-    public final BfDataCache dataCache = new BfDataCache(this);
-    private final KeyPair clientKeyPair;
+	public final BfDataCache dataCache = new BfDataCache(this);
+	private final KeyPair clientKeyPair;
 
-    private final Timer heartbeatTimer = new Timer("heartbeat timer");
+	private final Timer heartbeatTimer = new Timer("heartbeat timer");
 
-    {
-        try {
-            clientKeyPair = EncryptionUtils.generateECDHKeyPair();
-        } catch (GeneralSecurityException e) {
-            throw new RuntimeException(e);
-        }
-    }
+	{
+		try {
+			clientKeyPair = EncryptionUtils.generateECDHKeyPair();
+		} catch (GeneralSecurityException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
-    private final MinecraftAuth mcAuth;
-    private final MinecraftProfile mcProfile;
-    private final String version;
-    private final String versionHash;
-    private final byte[] hardwareId;
+	private final MinecraftAuth mcAuth;
+	private final MinecraftProfile mcProfile;
+	private final String version;
+	private final String versionHash;
+	private final byte[] hardwareId;
 
-    @Getter
-    private @Nullable Channel channel = null;
+	@Getter
+	private @Nullable Channel channel = null;
 
-    public BfConnection(MinecraftAuth mcAuth, MinecraftProfile mcProfile, String version, String versionHash, byte[] hardwareId) {
-        super(30 * 20);
-        this.mcAuth = mcAuth;
-        this.mcProfile = mcProfile;
-        this.version = version;
-        this.versionHash = versionHash;
-        this.hardwareId = hardwareId;
-    }
+	public BfConnection(MinecraftAuth mcAuth, MinecraftProfile mcProfile, String version, String versionHash, byte[] hardwareId) {
+		super(30 * 20);
+		this.mcAuth = mcAuth;
+		this.mcProfile = mcProfile;
+		this.version = version;
+		this.versionHash = versionHash;
+		this.hardwareId = hardwareId;
+	}
 
-    public void connect(SocketAddress address) {
-        log.info("connecting to cloud at {}", address);
+	public void connect(SocketAddress address) {
+		log.info("connecting to cloud at {}", address);
 
-        Bootstrap bootstrap = new Bootstrap()
-            .group(new MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory()))
-            .channel(NioSocketChannel.class)
-            .option(ChannelOption.TCP_NODELAY, true)
-            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30_000)
-            .handler(new BfCloudChannelInitializer(this));
+		Bootstrap bootstrap = new Bootstrap()
+			.group(new MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory()))
+			.channel(NioSocketChannel.class)
+			.option(ChannelOption.TCP_NODELAY, true)
+			.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30_000)
+			.handler(new BfCloudChannelInitializer(this));
 
-        bootstrap.connect(address).addListener((ChannelFutureListener) channelFuture -> {
-            if (channelFuture.isSuccess()) {
-                log.info("cloud connection established at {}", address);
-                channel = channelFuture.channel();
-                sendCredentials();
-            } else {
-                log.info("failed to connect to cloud at {}", address);
-                channel = null;
-            }
-        });
-    }
+		bootstrap.connect(address).addListener((ChannelFutureListener) channelFuture -> {
+			if (channelFuture.isSuccess()) {
+				log.info("cloud connection established at {}", address);
+				channel = channelFuture.channel();
+				sendCredentials();
+			} else {
+				log.info("failed to connect to cloud at {}", address);
+				channel = null;
+			}
+		});
+	}
 
-    public Channel channelOrThrow() {
-        if (channel == null) {
-            throw new IllegalStateException("channel is null");
-        }
-        return channel;
-    }
+	public Channel channelOrThrow() {
+		if (channel == null) {
+			throw new IllegalStateException("channel is null");
+		}
+		return channel;
+	}
 
-    public boolean isConnected() {
-        return channel != null && channel.isActive() && getStatus().isVerified();
-    }
+	public boolean isConnected() {
+		return channel != null && channel.isActive() && getStatus().isVerified();
+	}
 
-    private void sendCredentials() throws IOException {
-        log.info("sending cloud credentials");
+	private void sendCredentials() throws IOException {
+		log.info("sending cloud credentials");
 
-        EncryptedConnectionCredentials credentials = new EncryptedConnectionCredentials(
-            getType(),
-            mcProfile.uuid(),
-            mcProfile.username(),
-            version,
-            versionHash,
-            hardwareId,
-            clientKeyPair.getPublic()
-        );
+		EncryptedConnectionCredentials credentials = new EncryptedConnectionCredentials(
+			getType(),
+			mcProfile.uuid(),
+			mcProfile.username(),
+			version,
+			versionHash,
+			hardwareId,
+			clientKeyPair.getPublic()
+		);
 
-        ByteBuf buf = Unpooled.buffer();
-        credentials.writeCredentials(buf);
-        channelOrThrow().writeAndFlush(buf);
-    }
+		ByteBuf buf = Unpooled.buffer();
+		credentials.writeCredentials(buf);
+		channelOrThrow().writeAndFlush(buf);
+	}
 
-    void handleKeyExchange(EncryptionKeyExchangePacket packet) throws GeneralSecurityException {
-        PublicKey serverPublicKey = packet.serverPublicKey();
-        SecretKey secretKey = EncryptionUtils.deriveSharedSecret(clientKeyPair.getPrivate(), serverPublicKey);
+	void handleKeyExchange(EncryptionKeyExchangePacket packet) throws GeneralSecurityException {
+		PublicKey serverPublicKey = packet.serverPublicKey();
+		SecretKey secretKey = EncryptionUtils.deriveSharedSecret(clientKeyPair.getPrivate(), serverPublicKey);
 
-        ChannelPipeline pipeline = channelOrThrow().pipeline();
-        pipeline.addAfter(
-            "frameDecoder", "decryption",
-            Util.apply(new AESDecryptionHandler(secretKey), AESDecryptionHandler::activateDecryption)
-        );
-        pipeline.addAfter(
-            "frameEncoder", "encryption",
-            Util.apply(new AESEncryptionHandler(secretKey, false), AESEncryptionHandler::activateEncryption)
-        );
+		ChannelPipeline pipeline = channelOrThrow().pipeline();
+		pipeline.addAfter(
+			"frameDecoder", "decryption",
+			Util.apply(new AESDecryptionHandler(secretKey), AESDecryptionHandler::activateDecryption)
+		);
+		pipeline.addAfter(
+			"frameEncoder", "encryption",
+			Util.apply(new AESEncryptionHandler(secretKey, false), AESEncryptionHandler::activateEncryption)
+		);
 
-        sendPacket(new EncryptionReadyPacket());
+		sendPacket(new EncryptionReadyPacket());
 
-        log.info("cloud encryption established");
-    }
+		log.info("cloud encryption established");
+	}
 
-    @Override
-    public BfPlayerData getPlayerCloudData() {
-        throw new AssertionError();
-    }
+	@Override
+	public BfPlayerData getPlayerCloudData() {
+		throw new AssertionError();
+	}
 
-    @Override
-    public void onConnectionStatusChanged(@NotNull ConnectionStatus status, @NotNull ConnectionStatusContext context) {
-        log.info("cloud connection status changed to {} (context {})", status, context);
+	@Override
+	public void onConnectionStatusChanged(@NotNull ConnectionStatus status, @NotNull ConnectionStatusContext context) {
+		log.info("cloud connection status changed to {} (context {})", status, context);
 
-        switch (status) {
-            case CONNECTED_NOT_VERIFIED -> {
-                String serverId = randomServerId();
+		switch (status) {
+			case CONNECTED_NOT_VERIFIED -> {
+				String serverId = randomServerId();
 
-                log.info("joining session server");
-                try {
-                    mcAuth.joinServer(mcProfile, serverId);
-                } catch (IOException | InterruptedException e) {
-                    log.error("failed to join session server", e);
-                    disconnect("failed to join session server", true);
-                }
+				log.info("joining session server");
+				try {
+					mcAuth.joinServer(mcProfile, serverId);
+				} catch (IOException | InterruptedException e) {
+					log.error("failed to join session server", e);
+					disconnect("failed to join session server", true);
+				}
 
-                log.info("sending login packet");
-                sendPacket(new ClientLoginPacket(serverId, 0));
-            }
-            case CONNECTED_VERIFIED -> {
-                log.info("cloud connection verified");
+				log.info("sending login packet");
+				sendPacket(new ClientLoginPacket(serverId, 0));
+			}
+			case CONNECTED_VERIFIED -> {
+				log.info("cloud connection verified");
 
-                heartbeatTimer.schedule(new TimerTask() {
-                    @Override
-                    public void run() {
-                        if (isConnected()) {
-                            sendPacket(new ClientHeartBeatPacket());
-                        }
-                    }
-                }, 5 * 1000, 15 * 1000);
-            }
-        }
-    }
+				heartbeatTimer.schedule(new TimerTask() {
+					@Override
+					public void run() {
+						if (isConnected()) {
+							sendPacket(new ClientHeartBeatPacket());
+						}
+					}
+				}, 5 * 1000, 15 * 1000);
+			}
+		}
+	}
 
-    @Override
-    protected void onUpdate() {
-        throw new AssertionError();
-    }
+	@Override
+	protected void onUpdate() {
+		throw new AssertionError();
+	}
 
-    @Override
-    protected boolean shouldHandlePacket(@NotNull IPacket iPacket) {
-        return true;
-    }
+	@Override
+	protected boolean shouldHandlePacket(@NotNull IPacket iPacket) {
+		return true;
+	}
 
-    @Override
-    public void disconnect(@NotNull String reason, boolean sendLogout) {
-        if (isConnectionClosed() || channel == null) {
-            return;
-        }
+	@Override
+	public void disconnect(@NotNull String reason, boolean sendLogout) {
+		if (isConnectionClosed() || channel == null) {
+			return;
+		}
 
-        log.warn("cloud disconnected: {}", reason);
+		log.warn("cloud disconnected: {}", reason);
 
-        heartbeatTimer.cancel();
+		heartbeatTimer.cancel();
 
-        if (sendLogout) {
-            sendPacket(new ClientLogoutPacket());
-        }
+		if (sendLogout) {
+			sendPacket(new ClientLogoutPacket());
+		}
 
-        channel.close();
-        channel = null;
-    }
+		channel.close();
+		channel = null;
+	}
 
-    @Override
-    public @NotNull UUID getUUID() {
-        throw new AssertionError();
-    }
+	@Override
+	public @NotNull UUID getUUID() {
+		throw new AssertionError();
+	}
 
-    @Override
-    public byte[] getHardwareId() {
-        throw new AssertionError();
-    }
+	@Override
+	public byte[] getHardwareId() {
+		throw new AssertionError();
+	}
 
-    @Override
-    public @NotNull String getUsername() {
-        throw new AssertionError();
-    }
+	@Override
+	public @NotNull String getUsername() {
+		throw new AssertionError();
+	}
 
-    @Override
-    public @NotNull String getVersion() {
-        throw new AssertionError();
-    }
+	@Override
+	public @NotNull String getVersion() {
+		throw new AssertionError();
+	}
 
-    @Override
-    public @NotNull String getVersionHash() {
-        throw new AssertionError();
-    }
+	@Override
+	public @NotNull String getVersionHash() {
+		throw new AssertionError();
+	}
 
-    @Override
-    public @NotNull ConnectionType getType() {
-        return ConnectionType.PLAYER;
-    }
+	@Override
+	public @NotNull ConnectionType getType() {
+		return ConnectionType.PLAYER;
+	}
 
-    @Override
-    public void sendPacket(@NotNull IPacket packet) {
-        channelOrThrow().writeAndFlush(packet);
-    }
+	@Override
+	public void sendPacket(@NotNull IPacket packet) {
+		channelOrThrow().writeAndFlush(packet);
+	}
 
-    @Override
-    public <T extends IPacket> void onIllegalPacket(@NotNull T packet, @NotNull ConnectionType actualType, @NotNull ConnectionType expectedType) {
-        log.error("illegal packet {} (expected: {}, actual: {})", packet.getClass().getSimpleName(), expectedType, actualType);
-    }
+	@Override
+	public <T extends IPacket> void onIllegalPacket(@NotNull T packet, @NotNull ConnectionType actualType, @NotNull ConnectionType expectedType) {
+		log.error("illegal packet {} (expected: {}, actual: {})", packet.getClass().getSimpleName(), expectedType, actualType);
+	}
 
-    private static String randomServerId() {
-        byte[] bytes = new byte[20];
-        SECURE_RANDOM.nextBytes(bytes);
-        return HexFormat.of().formatHex(bytes);
-    }
+	private static String randomServerId() {
+		byte[] bytes = new byte[20];
+		SECURE_RANDOM.nextBytes(bytes);
+		return HexFormat.of().formatHex(bytes);
+	}
 }

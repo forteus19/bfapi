@@ -21,8 +21,8 @@ public final class Util {
 		.setFormattingStyle(FormattingStyle.PRETTY)
 		.create();
 
-    private Util() {
-    }
+	private Util() {
+	}
 
 	public static Gson gson(boolean pretty) {
 		return pretty ? PRETTY_GSON : COMPACT_GSON;
@@ -41,15 +41,15 @@ public final class Util {
 		}
 	}
 
-    public static String getEnvOrThrow(@NotNull String name) {
-        String value = System.getenv(name);
-        if (value == null) {
-            throw new RuntimeException("Environment variable " + name + " is not set");
-        }
-        return value;
-    }
+	public static String getEnvOrThrow(@NotNull String name) {
+		String value = System.getenv(name);
+		if (value == null) {
+			throw new RuntimeException("Environment variable " + name + " is not set");
+		}
+		return value;
+	}
 
-    public static String urlEncode(@NotNull String str) {
+	public static String urlEncode(@NotNull String str) {
 		return URLEncoder.encode(str, StandardCharsets.UTF_8);
 	}
 
@@ -69,19 +69,19 @@ public final class Util {
 		}
 	}
 
-    public static UUID parseUndashedUuid(@NotNull String str) {
-        if (str.length() != 32) {
-            throw new IllegalArgumentException("invalid undashed uuid");
-        }
-        return new UUID(
-            Long.parseUnsignedLong(str.substring(0, 16), 16),
-            Long.parseUnsignedLong(str.substring(16, 32), 16)
-        );
-    }
+	public static UUID parseUndashedUuid(@NotNull String str) {
+		if (str.length() != 32) {
+			throw new IllegalArgumentException("invalid undashed uuid");
+		}
+		return new UUID(
+			Long.parseUnsignedLong(str.substring(0, 16), 16),
+			Long.parseUnsignedLong(str.substring(16, 32), 16)
+		);
+	}
 
-    public static String getUndashedUuid(@NotNull UUID uuid) {
-        return uuid.toString().replace("-", "");
-    }
+	public static String getUndashedUuid(@NotNull UUID uuid) {
+		return uuid.toString().replace("-", "");
+	}
 
 	public static byte[] parseHexArray(@NotNull String str) {
 		if (str.length() % 2 != 0) {

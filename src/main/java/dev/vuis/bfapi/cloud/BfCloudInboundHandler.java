@@ -13,22 +13,22 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class BfCloudInboundHandler extends SimpleChannelInboundHandler<IPacket> {
-    private final BfConnection connection;
+	private final BfConnection connection;
 
-    @Override
-    protected void channelRead0(ChannelHandlerContext ctx, IPacket packet) throws IOException {
-        log.info("received packet {}", packet.getClass().getSimpleName());
+	@Override
+	protected void channelRead0(ChannelHandlerContext ctx, IPacket packet) throws IOException {
+		log.info("received packet {}", packet.getClass().getSimpleName());
 
-        connection.bumpIdle();
+		connection.bumpIdle();
 
-        if (packet instanceof EncryptionKeyExchangePacket keyExchangePacket) {
-            try {
-                connection.handleKeyExchange(keyExchangePacket);
-            } catch (GeneralSecurityException e) {
-                throw new RuntimeException(e);
-            }
-        } else if (connection.shouldHandlePacket(packet)) {
-            PacketRegistry.processPacket(packet, connection.getType(), connection);
-        }
-    }
+		if (packet instanceof EncryptionKeyExchangePacket keyExchangePacket) {
+			try {
+				connection.handleKeyExchange(keyExchangePacket);
+			} catch (GeneralSecurityException e) {
+				throw new RuntimeException(e);
+			}
+		} else if (connection.shouldHandlePacket(packet)) {
+			PacketRegistry.processPacket(packet, connection.getType(), connection);
+		}
+	}
 }
