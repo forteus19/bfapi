@@ -3,6 +3,7 @@ package dev.vuis.bfapi.cloud;
 import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.boehmod.bflib.cloud.common.player.AbstractPlayerCloudData;
 import com.boehmod.bflib.cloud.common.player.PlayerGroup;
+import com.boehmod.bflib.cloud.common.player.PlayerRank;
 import com.boehmod.bflib.cloud.common.player.challenge.Challenge;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -26,7 +27,6 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		root.addProperty("uuid", getUUID().toString());
 		root.addProperty("username", getUsername());
 		root.addProperty("mood", getMood().orElse(null));
-		root.addProperty("online", getStatus().getOnlineStatus().isOnline());
 		root.add("class_exp", Util.apply(new JsonArray(), classExps -> {
 			for (Int2IntMap.Entry entry : getClassExp().int2IntEntrySet()) {
 				classExps.add(Util.apply(new JsonObject(), classExp -> {
@@ -41,6 +41,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 			}
 		}));
 		root.addProperty("exp", getExp());
+		root.addProperty("rank", PlayerRank.getRankFromEXP(getExp()).getTitle());
 		root.addProperty("trophies", getTrophies());
 		root.addProperty("prestige", getPrestigeLevel());
 		root.addProperty("match_karma", getMatchKarma());

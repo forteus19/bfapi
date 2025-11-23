@@ -35,7 +35,7 @@ public record MinecraftProfile(
 		log.info("refreshing minecraft profile for {}", name);
 
 		HttpRequest request = HttpRequest.newBuilder()
-			.uri(URI.create("https://api.minecraftservices.com/minecraft/profile/lookup/name/" + name))
+			.uri(URI.create("https://api.minecraftservices.com/minecraft/profile/lookup/name/" + Util.urlEncode(name)))
 			.GET()
 			.build();
 
