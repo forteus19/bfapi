@@ -155,7 +155,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		JsonObject data;
 		try {
 			data = connection.dataCache.clanData.get(uuid.orElseThrow())
-				.thenApply(Serialization::clan)
+				.thenApply(clanData -> Serialization.clan(clanData, connection.dataCache))
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving clan data", e);

@@ -1,8 +1,8 @@
 package dev.vuis.bfapi.cloud;
 
-import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.vuis.bfapi.util.Serialization;
 import dev.vuis.bfapi.util.Util;
 import java.time.Instant;
 import java.util.Map;
@@ -28,38 +28,18 @@ public record BfCloudData(
 		root.add("player_scores", Util.apply(new JsonArray(), playerScoresObj -> {
 			playerScores.entrySet().stream()
 				.sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
-				.forEach(entry -> playerScoresObj.add(Util.apply(new JsonObject(), playerScore -> {
-					UUID uuid = entry.getKey();
-					String name = "Unknown";
-					if (dataCache != null) {
-						BfPlayerData playerData = dataCache.playerData.getIfPresent(uuid);
-						if (playerData != null) {
-							name = playerData.getUsername();
-						}
-					}
-
-					playerScore.addProperty("uuid", uuid.toString());
-					playerScore.addProperty("name", name);
-					playerScore.addProperty("score", entry.getValue());
-				})));
+				.forEach(entry -> playerScoresObj.add(Util.apply(
+					Serialization.getPlayerStub(entry.getKey(), dataCache),
+					playerScore -> playerScore.addProperty("score", entry.getValue())
+				)));
 		}));
 		root.add("clan_scores", Util.apply(new JsonArray(), clanScoresObj -> {
 			clanScores.entrySet().stream()
 				.sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
-				.forEach(entry -> clanScoresObj.add(Util.apply(new JsonObject(), clanScore -> {
-					UUID uuid = entry.getKey();
-					String name = "Unknown";
-					if (dataCache != null) {
-						AbstractClanData clanData = dataCache.clanData.getIfPresent(uuid);
-						if (clanData != null) {
-							name = clanData.getName();
-						}
-					}
-
-					clanScore.addProperty("uuid", uuid.toString());
-					clanScore.addProperty("name", name);
-					clanScore.addProperty("score", entry.getValue());
-				})));
+				.forEach(entry -> clanScoresObj.add(Util.apply(
+					Serialization.getClanStub(entry.getKey(), dataCache),
+					clanScore -> clanScore.addProperty("score", entry.getValue())
+				)));
 		}));
 		return root;
 	}

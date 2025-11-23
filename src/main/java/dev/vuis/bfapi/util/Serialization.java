@@ -6,7 +6,10 @@ import com.boehmod.bflib.cloud.common.player.challenge.ItemKillChallenge;
 import com.boehmod.bflib.cloud.common.player.challenge.KillCountChallenge;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.vuis.bfapi.cloud.BfDataCache;
+import dev.vuis.bfapi.cloud.BfPlayerData;
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 public final class Serialization {
 	private Serialization() {
@@ -32,16 +35,50 @@ public final class Serialization {
 		return root;
 	}
 
-	public static JsonObject clan(AbstractClanData clan) {
+	public static JsonObject clan(AbstractClanData clan, @Nullable BfDataCache dataCache) {
 		JsonObject root = new JsonObject();
 		root.addProperty("uuid", clan.getClanId().toString());
 		root.addProperty("name", clan.getName());
-		root.addProperty("owner", clan.getOwner().toString());
+		root.add("owner", getPlayerStub(clan.getOwner(), dataCache));
 		root.add("members", Util.apply(new JsonArray(), members -> {
 			for (UUID member : clan.getMembers()) {
-				members.add(member.toString());
+				members.add(getPlayerStub(member, dataCache));
 			}
 		}));
+		return root;
+	}
+
+	public static JsonObject getPlayerStub(UUID uuid, @Nullable BfDataCache dataCache) {
+		JsonObject root = new JsonObject();
+
+		String name = "Unknown";
+		if (dataCache != null) {
+			BfPlayerData playerData = dataCache.playerData.getIfPresent(uuid);
+			if (playerData != null) {
+				name = playerData.getUsername();
+			}
+		}
+
+		root.addProperty("uuid", uuid.toString());
+		root.addProperty("name", name);
+
+		return root;
+	}
+
+	public static JsonObject getClanStub(UUID uuid, @Nullable BfDataCache dataCache) {
+		JsonObject root = new JsonObject();
+
+		String name = "Unknown";
+		if (dataCache != null) {
+			AbstractClanData clanData = dataCache.clanData.getIfPresent(uuid);
+			if (clanData != null) {
+				name = clanData.getName();
+			}
+		}
+
+		root.addProperty("uuid", uuid.toString());
+		root.addProperty("name", name);
+
 		return root;
 	}
 }
