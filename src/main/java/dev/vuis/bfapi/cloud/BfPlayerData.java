@@ -35,11 +35,6 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 				}));
 			}
 		}));
-		root.add("challenges", Util.apply(new JsonArray(), challenges -> {
-			for (Challenge challenge : getChallenges()) {
-				challenges.add(Serialization.challenge(challenge));
-			}
-		}));
 		root.addProperty("exp", getExp());
 		root.addProperty("rank", PlayerRank.getRankFromEXP(getExp()).getTitle());
 		root.addProperty("trophies", getTrophies());
