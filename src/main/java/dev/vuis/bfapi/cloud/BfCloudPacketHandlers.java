@@ -25,7 +25,7 @@ public final class BfCloudPacketHandlers {
 	}
 
 	public static void register() {
-        registerPacketHandler(PacketChatMessageFromCloud.class, BfCloudPacketHandlers::chatMessageFromCloud);
+		registerPacketHandler(PacketChatMessageFromCloud.class, BfCloudPacketHandlers::chatMessageFromCloud);
 		registerPacketHandler(PacketNotificationFromCloud.class, BfCloudPacketHandlers::notificationFromCloud);
 		registerPacketHandler(PacketRequestedClanData.class, BfCloudPacketHandlers::requestedClanData);
 		registerPacketHandler(PacketRequestedCloudData.class, BfCloudPacketHandlers::requestedCloudData);
@@ -38,11 +38,11 @@ public final class BfCloudPacketHandlers {
 		PacketRegistry.registerPacketHandler(packetClass, packetHandler, BfConnection.class);
 	}
 
-    private static void chatMessageFromCloud(PacketChatMessageFromCloud packet, BfConnection connection) {
-        log.info("cloud chat message: {}", packet.message());
-    }
+	private static void chatMessageFromCloud(PacketChatMessageFromCloud packet, BfConnection connection) {
+		log.info("cloud chat message: {}", packet.message());
+	}
 
-    private static void notificationFromCloud(PacketNotificationFromCloud packet, BfConnection connection) {
+	private static void notificationFromCloud(PacketNotificationFromCloud packet, BfConnection connection) {
 		log.info("cloud notification: {}", packet.message());
 	}
 
@@ -60,17 +60,17 @@ public final class BfCloudPacketHandlers {
 		));
 	}
 
-    private static void requestedPlayerData(PacketRequestedPlayerData packet, BfConnection connection) {
+	private static void requestedPlayerData(PacketRequestedPlayerData packet, BfConnection connection) {
 		handlePlayerData(packet.uuid(), packet.context(), packet.data(), connection);
 	}
 
-    private static void requestedPlayerDataSet(PacketRequestedPlayerDataSet packet, BfConnection connection) {
+	private static void requestedPlayerDataSet(PacketRequestedPlayerDataSet packet, BfConnection connection) {
 		for (Map.Entry<UUID, Pair<PlayerDataContext, byte[]>> entry : packet.dataSet().entrySet()) {
 			handlePlayerData(entry.getKey(), entry.getValue().left(), entry.getValue().right(), connection);
 		}
 	}
 
-    private static void serverNotification(PacketServerNotification packet, BfConnection connection) {
+	private static void serverNotification(PacketServerNotification packet, BfConnection connection) {
 		log.info("server notification: {}", packet.message());
 	}
 

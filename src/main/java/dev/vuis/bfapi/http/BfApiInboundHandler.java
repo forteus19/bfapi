@@ -2,7 +2,6 @@ package dev.vuis.bfapi.http;
 
 import com.google.gson.JsonObject;
 import dev.vuis.bfapi.auth.MsCodeWrapper;
-import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.data.MinecraftProfile;
@@ -200,7 +199,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		JsonObject data;
 		try {
 			data = connection.dataCache.cloudData.get()
-				.thenApply(BfCloudData::serialize)
+				.thenApply(cloudData -> cloudData.serialize(connection.dataCache))
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving cloud data", e);

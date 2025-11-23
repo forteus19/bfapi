@@ -5,9 +5,11 @@ import com.boehmod.bflib.cloud.common.RequestType;
 import com.boehmod.bflib.cloud.packet.common.PacketClientRequest;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectList;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.UUID;
@@ -16,28 +18,36 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.Nullable;
 
 @RequiredArgsConstructor
 public class BfDataCache {
-	public final IdentifiableHolder<AbstractClanData> clanData = new IdentifiableHolder<>(RequestType.CLAN_DATA, Duration.ofMinutes(5));
-	public final IdentifiableHolder<BfPlayerData> playerData = new IdentifiableHolder<>(RequestType.PLAYER_DATA, Duration.ofSeconds(60));
+	public final IdentifiableHolder<AbstractClanData> clanData = new IdentifiableHolder<>(
+		RequestType.CLAN_DATA,
+		CacheBuilder.newBuilder()
+			.expireAfterWrite(Duration.ofMinutes(5))
+			.build()
+	);
+	public final IdentifiableHolder<BfPlayerData> playerData = new IdentifiableHolder<>(
+		RequestType.PLAYER_DATA,
+		CacheBuilder.newBuilder()
+			.expireAfterWrite(Duration.ofSeconds(90))
+			.build()
+	);
 
-	public final ConstantHolder<BfCloudData> cloudData = new ConstantHolder<>(RequestType.CLOUD_STATS, Duration.ofSeconds(60));
+	public final ConstantHolder<BfCloudData> cloudData = new ConstantHolder<>(
+		RequestType.CLOUD_STATS,
+		Duration.ofSeconds(30)
+	);
 
 	private final BfConnection connection;
 
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public class IdentifiableHolder<T> {
 		private final RequestType requestType;
-
 		private final Cache<UUID, T> cache;
-		private final Map<UUID, CompletableFuture<T>> pending = new ConcurrentHashMap<>();
 
-		private IdentifiableHolder(RequestType requestType, Duration lifetime) {
-			this.requestType = requestType;
-			cache = CacheBuilder.newBuilder()
-				.expireAfterWrite(lifetime)
-				.build();
-		}
+		private final Map<UUID, CompletableFuture<T>> pending = new ConcurrentHashMap<>();
 
 		public CompletableFuture<T> get(UUID uuid) {
 			T cached = cache.getIfPresent(uuid);
@@ -51,15 +61,44 @@ public class BfDataCache {
 			CompletableFuture<T> future = new CompletableFuture<>();
 			pending.put(uuid, future);
 
-			sendRequest(uuid);
+			request(uuid, true);
 
 			return future;
 		}
 
-		private void sendRequest(UUID uuid) {
+		public @Nullable T getIfPresent(UUID uuid) {
+			return cache.getIfPresent(uuid);
+		}
+
+		public void request(UUID uuid, boolean override) {
+			if (!override && cache.asMap().containsKey(uuid)) {
+				return;
+			}
+
 			connection.sendPacket(new PacketClientRequest(
 				EnumSet.noneOf(RequestType.class),
 				ObjectList.of(Map.entry(uuid, EnumSet.of(requestType)))
+			));
+		}
+
+		public void request(Collection<UUID> uuids, boolean override) {
+			ObjectList<Map.Entry<UUID, EnumSet<RequestType>>> requestEntries = new ObjectArrayList<>();
+
+			for (UUID uuid : uuids) {
+				if (!override && cache.asMap().containsKey(uuid)) {
+					continue;
+				}
+
+				requestEntries.add(Map.entry(uuid, EnumSet.of(requestType)));
+			}
+
+			if (requestEntries.isEmpty()) {
+				return;
+			}
+
+			connection.sendPacket(new PacketClientRequest(
+				EnumSet.noneOf(RequestType.class),
+				requestEntries
 			));
 		}
 
@@ -102,7 +141,7 @@ public class BfDataCache {
 
 			CompletableFuture<T> future = new CompletableFuture<>();
 			if (pending.compareAndSet(null, future)) {
-				sendRequest();
+				request();
 
 				return future;
 			} else {
@@ -110,7 +149,7 @@ public class BfDataCache {
 			}
 		}
 
-		private void sendRequest() {
+		private void request() {
 			connection.sendPacket(new PacketClientRequest(
 				EnumSet.of(requestType),
 				ObjectList.of()

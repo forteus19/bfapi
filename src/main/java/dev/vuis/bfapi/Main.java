@@ -5,14 +5,15 @@ import dev.vuis.bfapi.auth.MinecraftAuth;
 import dev.vuis.bfapi.auth.MsCodeWrapper;
 import dev.vuis.bfapi.auth.XblAuth;
 import dev.vuis.bfapi.auth.XstsAuth;
+import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfCloudPacketHandlers;
 import dev.vuis.bfapi.cloud.BfConnection;
+import dev.vuis.bfapi.cloud.BfDataCache;
 import dev.vuis.bfapi.data.MinecraftProfile;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
 import dev.vuis.bfapi.http.BfApiInboundHandler;
 import dev.vuis.bfapi.util.Util;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.EventLoopGroup;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -22,7 +23,13 @@ import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Scanner;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -94,14 +101,18 @@ public final class Main {
 		connection.connect(BF_CLOUD_ADDRESS);
 
 		inboundHandler.connection = connection;
+
+		Timer scoreboardRefreshTimer = new Timer();
+		scoreboardRefreshTimer.schedule(
+			new ScoreboardRefreshTask(connection.dataCache),
+			10 * 1000, 60 * 1000
+		);
 	}
 
 	private static void startHttpServer(MsCodeWrapper msCodeWrapper) {
-		EventLoopGroup elg = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
-
 		inboundHandler = new BfApiInboundHandler(msCodeWrapper);
 		ServerBootstrap bootstrap = new ServerBootstrap()
-			.group(elg)
+			.group(new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory()))
 			.channel(NioServerSocketChannel.class)
 			.childHandler(new BfApiChannelInitializer(inboundHandler));
 
@@ -114,5 +125,25 @@ public final class Main {
 			throw new IllegalArgumentException("uri does not have code query parameter");
 		}
 		return qs.parameters().get("code").getFirst();
+	}
+
+	@RequiredArgsConstructor
+	private static final class ScoreboardRefreshTask extends TimerTask {
+		private final BfDataCache dataCache;
+
+		@Override
+		public void run() {
+			BfCloudData cloudData;
+			try {
+				cloudData = dataCache.cloudData.get().get(10, TimeUnit.SECONDS);
+			} catch (InterruptedException | TimeoutException e) {
+				return;
+			} catch (ExecutionException e) {
+				throw new RuntimeException(e);
+			}
+
+			dataCache.playerData.request(cloudData.playerScores().keySet(), true);
+			dataCache.clanData.request(cloudData.clanScores().keySet(), true);
+		}
 	}
 }

@@ -17,7 +17,7 @@ public class BfCloudInboundHandler extends SimpleChannelInboundHandler<IPacket> 
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, IPacket packet) throws IOException {
-		log.info("received packet {}", packet.getClass().getSimpleName());
+		log.trace("received packet {}", packet);
 
 		connection.bumpIdle();
 
