@@ -6,6 +6,7 @@ import com.boehmod.bflib.cloud.packet.IPacketHandlerFunction;
 import com.boehmod.bflib.cloud.packet.PacketRegistry;
 import com.boehmod.bflib.cloud.packet.common.PacketChatMessageFromCloud;
 import com.boehmod.bflib.cloud.packet.common.PacketNotificationFromCloud;
+import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedClanData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerDataSet;
 import com.boehmod.bflib.cloud.packet.common.server.PacketServerNotification;
@@ -24,6 +25,7 @@ public final class BfCloudPacketHandlers {
 	public static void register() {
         registerPacketHandler(PacketChatMessageFromCloud.class, BfCloudPacketHandlers::chatMessageFromCloud);
 		registerPacketHandler(PacketNotificationFromCloud.class, BfCloudPacketHandlers::notificationFromCloud);
+		registerPacketHandler(PacketRequestedClanData.class, BfCloudPacketHandlers::requestedClanData);
 		registerPacketHandler(PacketRequestedPlayerData.class, BfCloudPacketHandlers::requestedPlayerData);
 		registerPacketHandler(PacketRequestedPlayerDataSet.class, BfCloudPacketHandlers::requestedPlayerDataSet);
 		registerPacketHandler(PacketServerNotification.class, BfCloudPacketHandlers::serverNotification);
@@ -39,6 +41,10 @@ public final class BfCloudPacketHandlers {
 
     private static void notificationFromCloud(PacketNotificationFromCloud packet, BfConnection connection) {
 		log.info("cloud notification: {}", packet.message());
+	}
+
+	private static void requestedClanData(PacketRequestedClanData packet, BfConnection connection) {
+		connection.dataCache.clanData.complete(packet.uuid(), packet.clanData());
 	}
 
     private static void requestedPlayerData(PacketRequestedPlayerData packet, BfConnection connection) {
@@ -63,12 +69,12 @@ public final class BfCloudPacketHandlers {
 			playerData.read(context, buf);
 		} catch (Exception e) {
 			log.error("failed to read player data", e);
-			connection.dataCache.completePlayerData(uuid, e);
+			connection.dataCache.playerData.complete(uuid, e);
 			return;
 		} finally {
 			buf.release();
 		}
 
-		connection.dataCache.completePlayerData(uuid, playerData);
+		connection.dataCache.playerData.complete(uuid, playerData);
 	}
 }

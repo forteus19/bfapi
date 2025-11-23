@@ -6,6 +6,7 @@ import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.data.MinecraftProfile;
 import dev.vuis.bfapi.util.Responses;
+import dev.vuis.bfapi.util.Serialization;
 import dev.vuis.bfapi.util.Util;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
@@ -45,7 +46,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		FullHttpResponse response = switch (path) {
 			case AUTH_CALLBACK_PATH -> msCodeWrapper != null ? serverAuthCallback(ctx, msg, qs) : null;
-			case "/player_data" -> playerData(ctx, msg, qs);
+			case "/api/v1/clan_data" -> clanData(ctx, msg, qs);
+			case "/api/v1/player_data" -> playerData(ctx, msg, qs);
 			default -> null;
 		};
 
@@ -113,6 +115,67 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			ctx, msg,
 			HttpResponseStatus.OK,
 			"Authentication completed"
+		);
+	}
+
+	private FullHttpResponse clanData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		if (msg.method() != HttpMethod.GET) {
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.METHOD_NOT_ALLOWED,
+				"method_not_allowed"
+			);
+		}
+		if (connection == null || !connection.isConnected()) {
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.SERVICE_UNAVAILABLE,
+				"cloud_disconnected"
+			);
+		}
+
+		if (!qs.parameters().containsKey("uuid")) {
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.BAD_REQUEST,
+				"missing_uuid"
+			);
+		}
+
+		Optional<UUID> uuid = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
+		if (uuid.isEmpty()) {
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.BAD_REQUEST,
+				"invalid_uuid"
+			);
+		}
+
+		JsonObject data;
+		try {
+			data = connection.dataCache.clanData.get(uuid.orElseThrow())
+				.thenApply(Serialization::clan)
+				.get(10, TimeUnit.SECONDS);
+		} catch (ExecutionException | InterruptedException e) {
+			log.error("error while retrieving clan data", e);
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				"internal_server_error"
+			);
+		} catch (TimeoutException e) {
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.GATEWAY_TIMEOUT,
+				"packet_timeout"
+			);
+		}
+
+		return Responses.json(
+			ctx, msg,
+			HttpResponseStatus.OK,
+			data,
+			true
 		);
 	}
 
@@ -185,7 +248,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		JsonObject data;
 		try {
-			data = connection.dataCache.getPlayerData(uuid)
+			data = connection.dataCache.playerData.get(uuid)
 				.thenApply(BfPlayerData::serialize)
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
