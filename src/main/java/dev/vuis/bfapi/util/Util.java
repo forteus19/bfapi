@@ -16,9 +16,11 @@ public final class Util {
 	public static final String UUID_PATTERN = "[0-9a-fA-F]{8}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{12}";
 	public static final Gson COMPACT_GSON = new GsonBuilder()
 		.setFormattingStyle(FormattingStyle.COMPACT)
+		.serializeNulls()
 		.create();
 	public static final Gson PRETTY_GSON = new GsonBuilder()
 		.setFormattingStyle(FormattingStyle.PRETTY)
+		.serializeNulls()
 		.create();
 
 	private Util() {
