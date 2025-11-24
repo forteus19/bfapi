@@ -1,5 +1,6 @@
 plugins {
     java
+    application
 }
 
 group = "dev.vuis"
@@ -36,4 +37,8 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+application {
+    mainClass = "dev.vuis.bfapi.Main"
 }
