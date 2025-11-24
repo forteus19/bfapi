@@ -14,7 +14,6 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -47,19 +46,23 @@ public class BfDataCache {
 		private final RequestType requestType;
 		private final Cache<UUID, T> cache;
 
-		private final Map<UUID, CompletableFuture<T>> pending = new ConcurrentHashMap<>();
+		private final Cache<UUID, CompletableFuture<T>> pendingCache = CacheBuilder.newBuilder()
+			.expireAfterWrite(Duration.ofSeconds(15))
+			.build();
 
 		public CompletableFuture<T> get(UUID uuid) {
 			T cached = cache.getIfPresent(uuid);
 			if (cached != null) {
 				return CompletableFuture.completedFuture(cached);
 			}
-			if (pending.containsKey(uuid)) {
-				return pending.get(uuid);
+
+			CompletableFuture<T> pending = pendingCache.getIfPresent(uuid);
+			if (pending != null) {
+				return pending;
 			}
 
 			CompletableFuture<T> future = new CompletableFuture<>();
-			pending.put(uuid, future);
+			pendingCache.put(uuid, future);
 
 			request(uuid, true);
 
@@ -103,17 +106,19 @@ public class BfDataCache {
 		}
 
 		void complete(UUID uuid, T data) {
-			CompletableFuture<T> future = pending.remove(uuid);
+			CompletableFuture<T> future = pendingCache.getIfPresent(uuid);
 			if (future != null) {
 				future.complete(data);
+				pendingCache.invalidate(uuid);
 			}
 			cache.put(uuid, data);
 		}
 
 		void complete(UUID uuid, Exception e) {
-			CompletableFuture<T> future = pending.remove(uuid);
+			CompletableFuture<T> future = pendingCache.getIfPresent(uuid);
 			if (future != null) {
 				future.completeExceptionally(e);
+				pendingCache.invalidate(uuid);
 			}
 		}
 	}
