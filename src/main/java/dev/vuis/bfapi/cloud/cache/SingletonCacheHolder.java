@@ -55,6 +55,7 @@ public class SingletonCacheHolder<T> {
 		CompletableFuture<T> pendingNow = pending.get();
 		if (pendingNow != null) {
 			pendingNow.complete(data);
+			pending.set(null);
 		}
 		currentValue.set(data);
 		lastUpdated.set(Instant.now());
@@ -64,6 +65,7 @@ public class SingletonCacheHolder<T> {
 		CompletableFuture<T> pendingNow = pending.get();
 		if (pendingNow != null) {
 			pendingNow.completeExceptionally(e);
+			pending.set(null);
 		}
 	}
 }
