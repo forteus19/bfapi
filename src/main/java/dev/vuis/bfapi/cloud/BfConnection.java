@@ -1,6 +1,9 @@
 package dev.vuis.bfapi.cloud;
 
+import com.boehmod.bflib.cloud.common.CloudRegistry;
 import com.boehmod.bflib.cloud.common.ConnectionType;
+import com.boehmod.bflib.cloud.common.item.CloudItems;
+import com.boehmod.bflib.cloud.common.player.achievement.CloudAchievements;
 import com.boehmod.bflib.cloud.connection.Connection;
 import com.boehmod.bflib.cloud.connection.ConnectionStatus;
 import com.boehmod.bflib.cloud.connection.ConnectionStatusContext;
@@ -15,6 +18,7 @@ import com.boehmod.bflib.cloud.packet.primitives.ClientLogoutPacket;
 import com.boehmod.bflib.cloud.packet.primitives.EncryptionKeyExchangePacket;
 import com.boehmod.bflib.cloud.packet.primitives.EncryptionReadyPacket;
 import dev.vuis.bfapi.auth.MinecraftAuth;
+import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.data.MinecraftProfile;
 import dev.vuis.bfapi.util.Util;
 import io.netty.bootstrap.Bootstrap;
@@ -49,6 +53,8 @@ public class BfConnection extends Connection<BfPlayerData> {
 	private static final Random SECURE_RANDOM = new SecureRandom();
 
 	public final BfDataCache dataCache = new BfDataCache(this);
+	public final CloudRegistry registry = new CloudRegistry();
+
 	private final KeyPair clientKeyPair;
 
 	private final Timer heartbeatTimer = new Timer("heartbeat timer");
@@ -77,6 +83,9 @@ public class BfConnection extends Connection<BfPlayerData> {
 		this.version = version;
 		this.versionHash = versionHash;
 		this.hardwareId = hardwareId;
+
+		CloudAchievements.registerAchievements(registry);
+		CloudItems.registerItems(registry);
 	}
 
 	public void connect(SocketAddress address) {

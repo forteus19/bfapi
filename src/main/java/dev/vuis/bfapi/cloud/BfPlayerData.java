@@ -68,7 +68,8 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 
 	@Override
 	protected @NotNull BfPlayerInventory createInventory() {
-		return new BfPlayerInventory(this);
+		// not used
+		return null;
 	}
 
 	@Override

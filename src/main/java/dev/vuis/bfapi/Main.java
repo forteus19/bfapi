@@ -8,7 +8,7 @@ import dev.vuis.bfapi.auth.XstsAuth;
 import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfCloudPacketHandlers;
 import dev.vuis.bfapi.cloud.BfConnection;
-import dev.vuis.bfapi.cloud.BfDataCache;
+import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.data.MinecraftProfile;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
 import dev.vuis.bfapi.http.BfApiInboundHandler;

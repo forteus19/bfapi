@@ -1,13 +1,18 @@
 package dev.vuis.bfapi.util;
 
 import com.boehmod.bflib.cloud.common.AbstractClanData;
+import com.boehmod.bflib.cloud.common.CloudRegistry;
+import com.boehmod.bflib.cloud.common.item.CloudItem;
+import com.boehmod.bflib.cloud.common.item.CloudItemStack;
 import com.boehmod.bflib.cloud.common.player.challenge.Challenge;
 import com.boehmod.bflib.cloud.common.player.challenge.ItemKillChallenge;
 import com.boehmod.bflib.cloud.common.player.challenge.KillCountChallenge;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import dev.vuis.bfapi.cloud.BfDataCache;
 import dev.vuis.bfapi.cloud.BfPlayerData;
+import dev.vuis.bfapi.cloud.BfPlayerInventory;
+import dev.vuis.bfapi.cloud.cache.BfDataCache;
+import java.util.Collection;
 import java.util.UUID;
 import org.jetbrains.annotations.Nullable;
 
@@ -48,9 +53,45 @@ public final class Serialization {
 		return root;
 	}
 
-	public static JsonObject getPlayerStub(UUID uuid, @Nullable BfDataCache dataCache) {
-		JsonObject root = new JsonObject();
+	public static JsonObject cloudItemStack(CloudItemStack stack, CloudRegistry registry, boolean includeUuid, boolean includeDetails) {
+		CloudItem<?> item = stack.getCloudItem(registry);
+		assert item != null;
 
+		JsonObject root = new JsonObject();
+		if (includeUuid) {
+			root.addProperty("uuid", stack.getUUID().toString());
+		}
+		root.addProperty("id", stack.getItemId());
+		if (includeDetails) {
+			root.addProperty("display_name", item.getDisplayName());
+			root.addProperty("rarity", item.getRarity().getName().toLowerCase());
+			root.addProperty("type", item.getItemType().toString().toLowerCase());
+		}
+		root.addProperty("mint", stack.getMint());
+		stack.getNameTag().ifPresent(nameTag -> root.addProperty("name_tag", nameTag));
+
+		return root;
+	}
+
+	public static JsonObject playerInventory(BfPlayerInventory inventory, CloudRegistry registry, boolean includeUuid, boolean includeDetails) {
+		Collection<CloudItemStack> itemsSorted = inventory.getItems();
+
+		JsonObject root = new JsonObject();
+		root.add("inventory", Util.apply(new JsonArray(), inventoryArray -> {
+			for (CloudItemStack itemStack : itemsSorted) {
+				CloudItem<?> item = itemStack.getCloudItem(registry);
+				assert item != null;
+
+				if (!item.isDefault()) {
+					inventoryArray.add(cloudItemStack(itemStack, registry, includeUuid, includeDetails));
+				}
+			}
+		}));
+
+		return root;
+	}
+
+	public static JsonObject getPlayerStub(UUID uuid, @Nullable BfDataCache dataCache) {
 		String name = "Unknown";
 		if (dataCache != null) {
 			BfPlayerData playerData = dataCache.playerData.getIfPresent(uuid);
@@ -58,6 +99,12 @@ public final class Serialization {
 				name = playerData.getUsername();
 			}
 		}
+
+		return getPlayerStub(uuid, name);
+	}
+
+	public static JsonObject getPlayerStub(UUID uuid, String name) {
+		JsonObject root = new JsonObject();
 
 		root.addProperty("uuid", uuid.toString());
 		root.addProperty("name", name);

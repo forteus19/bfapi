@@ -49,6 +49,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			case "/api/v1/clan_data" -> clanData(ctx, msg, qs);
 			case "/api/v1/cloud_data" -> cloudData(ctx, msg, qs);
 			case "/api/v1/player_data" -> playerData(ctx, msg, qs);
+			case "/api/v1/player_inventory" -> playerInventory(ctx, msg, qs);
 			default -> null;
 		};
 
@@ -316,6 +317,140 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			HttpResponseStatus.OK,
 			data,
 			true
+		);
+	}
+
+	private FullHttpResponse playerInventory(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		if (msg.method() != HttpMethod.GET) {
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.METHOD_NOT_ALLOWED,
+				"method_not_allowed"
+			);
+		}
+		if (connection == null || !connection.isConnected()) {
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.SERVICE_UNAVAILABLE,
+				"cloud_disconnected"
+			);
+		}
+
+		boolean hasUuid = qs.parameters().containsKey("uuid");
+		boolean hasName = qs.parameters().containsKey("name");
+		if (!(hasUuid || hasName)) {
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.BAD_REQUEST,
+				"missing_uuid_or_name"
+			);
+		}
+		if (hasUuid && hasName) {
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.BAD_REQUEST,
+				"both_uuid_and_name"
+			);
+		}
+
+		boolean includeUuid = false;
+		if (qs.parameters().containsKey("include_uuid")) {
+			try {
+				includeUuid = Boolean.parseBoolean(qs.parameters().get("include_uuid").getFirst());
+			} catch (Exception e) {
+				return Responses.error(
+					ctx, msg,
+					HttpResponseStatus.BAD_REQUEST,
+					"invalid_include_uuid"
+				);
+			}
+		}
+		boolean includeDetails = false;
+		if (qs.parameters().containsKey("include_details")) {
+			try {
+				includeDetails = Boolean.parseBoolean(qs.parameters().get("include_details").getFirst());
+			} catch (Exception e) {
+				return Responses.error(
+					ctx, msg,
+					HttpResponseStatus.BAD_REQUEST,
+					"invalid_include_details"
+				);
+			}
+		}
+
+		UUID uuid;
+		if (hasUuid) {
+			Optional<UUID> uuidParseResult = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
+			if (uuidParseResult.isEmpty()) {
+				return Responses.error(
+					ctx, msg,
+					HttpResponseStatus.BAD_REQUEST,
+					"invalid_uuid"
+				);
+			}
+
+			uuid = uuidParseResult.orElseThrow();
+		} else {
+			Optional<MinecraftProfile> profile;
+			try {
+				profile = MinecraftProfile.retrieveByName(qs.parameters().get("name").getFirst());
+			} catch (IOException | InterruptedException e) {
+				return Responses.error(
+					ctx, msg,
+					HttpResponseStatus.INTERNAL_SERVER_ERROR,
+					"profile_unavailable"
+				);
+			}
+			if (profile.isEmpty()) {
+				return Responses.error(
+					ctx, msg,
+					HttpResponseStatus.NOT_FOUND,
+					"profile_not_found"
+				);
+			}
+
+			uuid = profile.orElseThrow().uuid();
+		}
+
+		JsonObject data;
+		try {
+			final boolean finalIncludeUuid = includeUuid;
+			final boolean finalIncludeDetails = includeDetails;
+			data = connection.dataCache.playerInventory.get(uuid)
+				.thenApply(playerInventory -> Serialization.playerInventory(
+					playerInventory,
+					connection.registry,
+					finalIncludeUuid,
+					finalIncludeDetails
+				))
+				.thenApply(inventoryData -> {
+					inventoryData.add("player", hasName ?
+						Serialization.getPlayerStub(uuid, qs.parameters().get("name").getFirst()) :
+						Serialization.getPlayerStub(uuid, connection.dataCache)
+					);
+					return inventoryData;
+				})
+				.get(10, TimeUnit.SECONDS);
+		} catch (ExecutionException | InterruptedException e) {
+			log.error("error while retrieving player data", e);
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				"internal_server_error"
+			);
+		} catch (TimeoutException e) {
+			return Responses.error(
+				ctx, msg,
+				HttpResponseStatus.GATEWAY_TIMEOUT,
+				"packet_timeout"
+			);
+		}
+
+		return Responses.json(
+			ctx, msg,
+			HttpResponseStatus.OK,
+			data,
+			false
 		);
 	}
 }

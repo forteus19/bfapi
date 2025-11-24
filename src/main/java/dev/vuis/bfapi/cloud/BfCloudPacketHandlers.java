@@ -8,6 +8,7 @@ import com.boehmod.bflib.cloud.packet.common.PacketChatMessageFromCloud;
 import com.boehmod.bflib.cloud.packet.common.PacketNotificationFromCloud;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedClanData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedCloudData;
+import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedInventory;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerDataSet;
 import com.boehmod.bflib.cloud.packet.common.server.PacketServerNotification;
@@ -29,6 +30,7 @@ public final class BfCloudPacketHandlers {
 		registerPacketHandler(PacketNotificationFromCloud.class, BfCloudPacketHandlers::notificationFromCloud);
 		registerPacketHandler(PacketRequestedClanData.class, BfCloudPacketHandlers::requestedClanData);
 		registerPacketHandler(PacketRequestedCloudData.class, BfCloudPacketHandlers::requestedCloudData);
+		registerPacketHandler(PacketRequestedInventory.class, BfCloudPacketHandlers::requestedInventory);
 		registerPacketHandler(PacketRequestedPlayerData.class, BfCloudPacketHandlers::requestedPlayerData);
 		registerPacketHandler(PacketRequestedPlayerDataSet.class, BfCloudPacketHandlers::requestedPlayerDataSet);
 		registerPacketHandler(PacketServerNotification.class, BfCloudPacketHandlers::serverNotification);
@@ -58,6 +60,10 @@ public final class BfCloudPacketHandlers {
 			packet.getPlayerScores(),
 			packet.getClanScores()
 		));
+	}
+
+	private static void requestedInventory(PacketRequestedInventory packet, BfConnection connection) {
+		connection.dataCache.playerInventory.supply(packet.uuid(), inventory -> inventory.onReceiveSection(packet.stacks(), packet.section()));
 	}
 
 	private static void requestedPlayerData(PacketRequestedPlayerData packet, BfConnection connection) {
