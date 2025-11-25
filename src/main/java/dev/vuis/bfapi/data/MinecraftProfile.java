@@ -27,21 +27,23 @@ public record MinecraftProfile(
 	private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
 	public static Optional<MinecraftProfile> retrieveByName(@NotNull String name) throws IOException, InterruptedException {
-		Optional<MinecraftProfile> cached = CACHE_BY_NAME.getIfPresent(name);
+		String lookupName = name.toLowerCase();
+
+		Optional<MinecraftProfile> cached = CACHE_BY_NAME.getIfPresent(lookupName);
 		if (cached != null) {
 			return cached;
 		}
 
-		log.info("refreshing minecraft profile for {}", name);
+		log.info("refreshing minecraft profile for {}", lookupName);
 
 		HttpRequest request = HttpRequest.newBuilder()
-			.uri(URI.create("https://api.minecraftservices.com/minecraft/profile/lookup/name/" + Util.urlEncode(name)))
+			.uri(URI.create("https://api.minecraftservices.com/minecraft/profile/lookup/name/" + Util.urlEncode(lookupName)))
 			.GET()
 			.build();
 
 		HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 		if (!Util.isSuccess(response.statusCode())) {
-			CACHE_BY_NAME.put(name, Optional.empty());
+			CACHE_BY_NAME.put(lookupName, Optional.empty());
 			return Optional.empty();
 		}
 
@@ -51,7 +53,7 @@ public record MinecraftProfile(
 			json.get("name").getAsString()
 		));
 
-		CACHE_BY_NAME.put(name, profile);
+		CACHE_BY_NAME.put(lookupName, profile);
 
 		return profile;
 	}
