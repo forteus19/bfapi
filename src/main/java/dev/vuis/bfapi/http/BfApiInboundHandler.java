@@ -128,7 +128,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				"method_not_allowed"
 			);
 		}
-		if (connection == null || !connection.isConnected()) {
+		if (connection == null || !connection.isConnectedAndVerified()) {
 			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.SERVICE_UNAVAILABLE,
@@ -189,7 +189,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				"method_not_allowed"
 			);
 		}
-		if (connection == null || !connection.isConnected()) {
+		if (connection == null || !connection.isConnectedAndVerified()) {
 			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.SERVICE_UNAVAILABLE,
@@ -233,7 +233,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				"method_not_allowed"
 			);
 		}
-		if (connection == null || !connection.isConnected()) {
+		if (connection == null || !connection.isConnectedAndVerified()) {
 			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.SERVICE_UNAVAILABLE,
@@ -328,7 +328,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				"method_not_allowed"
 			);
 		}
-		if (connection == null || !connection.isConnected()) {
+		if (connection == null || !connection.isConnectedAndVerified()) {
 			return Responses.error(
 				ctx, msg,
 				HttpResponseStatus.SERVICE_UNAVAILABLE,

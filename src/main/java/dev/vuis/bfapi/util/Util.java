@@ -13,7 +13,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class Util {
-	public static final String UUID_PATTERN = "[0-9a-fA-F]{8}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{12}";
 	public static final Gson COMPACT_GSON = new GsonBuilder()
 		.setFormattingStyle(FormattingStyle.COMPACT)
 		.serializeNulls()
@@ -98,5 +97,19 @@ public final class Util {
 		}
 
 		return result;
+	}
+
+	public static String createHexString(byte @NotNull [] bytes) {
+		StringBuilder sb = new StringBuilder();
+
+		for (byte b : bytes) {
+			String byteStr = Integer.toHexString(255 & b);
+			if (byteStr.length() == 1) {
+				sb.append('0');
+			}
+			sb.append(byteStr);
+		}
+
+		return sb.toString();
 	}
 }

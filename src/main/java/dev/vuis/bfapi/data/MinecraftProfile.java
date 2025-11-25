@@ -20,16 +20,16 @@ public record MinecraftProfile(
 	UUID uuid,
 	String username
 ) {
-	public static final Cache<String, MinecraftProfile> CACHE_BY_NAME = CacheBuilder.newBuilder()
+	public static final Cache<String, Optional<MinecraftProfile>> CACHE_BY_NAME = CacheBuilder.newBuilder()
 		.expireAfterWrite(Duration.ofMinutes(10))
 		.build();
 
 	private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
 	public static Optional<MinecraftProfile> retrieveByName(@NotNull String name) throws IOException, InterruptedException {
-		MinecraftProfile cached = CACHE_BY_NAME.getIfPresent(name);
+		Optional<MinecraftProfile> cached = CACHE_BY_NAME.getIfPresent(name);
 		if (cached != null) {
-			return Optional.of(cached);
+			return cached;
 		}
 
 		log.info("refreshing minecraft profile for {}", name);
@@ -41,17 +41,18 @@ public record MinecraftProfile(
 
 		HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 		if (!Util.isSuccess(response.statusCode())) {
+			CACHE_BY_NAME.put(name, Optional.empty());
 			return Optional.empty();
 		}
 
 		JsonObject json = Util.COMPACT_GSON.fromJson(response.body(), JsonObject.class);
-		MinecraftProfile profile = new MinecraftProfile(
+		Optional<MinecraftProfile> profile = Optional.of(new MinecraftProfile(
 			Util.parseUndashedUuid(json.get("id").getAsString()),
 			json.get("name").getAsString()
-		);
+		));
 
 		CACHE_BY_NAME.put(name, profile);
 
-		return Optional.of(profile);
+		return profile;
 	}
 }

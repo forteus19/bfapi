@@ -1,4 +1,4 @@
-package dev.vuis.bfapi;
+package dev.vuis.bfapi.main;
 
 import dev.vuis.bfapi.auth.MicrosoftAuth;
 import dev.vuis.bfapi.auth.MinecraftAuth;
@@ -8,7 +8,6 @@ import dev.vuis.bfapi.auth.XstsAuth;
 import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfCloudPacketHandlers;
 import dev.vuis.bfapi.cloud.BfConnection;
-import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.data.MinecraftProfile;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
 import dev.vuis.bfapi.http.BfApiInboundHandler;
@@ -18,23 +17,23 @@ import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.QueryStringDecoder;
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Scanner;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.Nullable;
 
 @Slf4j
-public final class Main {
+public final class ApiMain {
 	private static final InetSocketAddress BF_CLOUD_ADDRESS = new InetSocketAddress("cloud.blockfrontmc.com", 1924);
 
 	private static final int PORT = Integer.parseInt(Util.getEnvOrThrow("PORT"));
@@ -47,12 +46,16 @@ public final class Main {
 	private static final byte[] BF_HARDWARE_ID = Util.parseHexArray(Util.getEnvOrThrow("BF_HARDWARE_ID"));
 
 	private static BfApiInboundHandler inboundHandler = null;
+	private static final ScheduledExecutorService refreshExecutor = Executors.newSingleThreadScheduledExecutor();
+	private static @Nullable ScheduledFuture<?> refreshFuture = null;
 
-	private Main() {
+	private ApiMain() {
 	}
 
 	@SneakyThrows
 	public static void main(String[] args) {
+		Scanner consoleScanner = new Scanner(System.in);
+
 		log.info("starting HTTP server");
 
 		CompletableFuture<String> msCodeFuture = null;
@@ -67,11 +70,7 @@ public final class Main {
 
 		String msClientSecret = null;
 		if (MS_CLIENT_SECRET_FILE != null) {
-			try {
-				msClientSecret = Files.readString(Path.of(MS_CLIENT_SECRET_FILE));
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
+			msClientSecret = Files.readString(Path.of(MS_CLIENT_SECRET_FILE));
 		}
 		MicrosoftAuth msAuth = new MicrosoftAuth(
 			MS_CLIENT_ID,
@@ -84,7 +83,7 @@ public final class Main {
 		String msAuthorizationCode;
 		if (MS_PASTE_REDIRECT) {
 			log.info("paste redirected location:");
-			String redirectInput = new Scanner(System.in).nextLine();
+			String redirectInput = consoleScanner.nextLine();
 			msAuthorizationCode = parseRedirectResult(redirectInput);
 		} else {
 			msAuthorizationCode = msCodeFuture.get();
@@ -96,17 +95,32 @@ public final class Main {
 		MinecraftAuth mcAuth = new MinecraftAuth(xstsAuth);
 		MinecraftProfile mcProfile = mcAuth.retrieveProfile();
 
+		log.info("authenticated as {} ({})", mcProfile.username(), mcProfile.uuid());
+		log.info("press enter to continue");
+		consoleScanner.nextLine();
+
 		BfCloudPacketHandlers.register();
 		BfConnection connection = new BfConnection(mcAuth, mcProfile, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
 		connection.connect(BF_CLOUD_ADDRESS);
 
 		inboundHandler.connection = connection;
 
-		Timer scoreboardRefreshTimer = new Timer();
-		scoreboardRefreshTimer.schedule(
-			new ScoreboardRefreshTask(connection.dataCache),
-			10 * 1000, 60 * 1000
-		);
+		connection.addStatusListener(status -> {
+			switch (status) {
+				case CONNECTED_VERIFIED -> {
+					refreshFuture = refreshExecutor.scheduleAtFixedRate(
+						() -> refreshScoreboardMembers(connection),
+						10, 60, TimeUnit.SECONDS
+					);
+				}
+				case CLOSED -> {
+					if (refreshFuture != null) {
+						refreshFuture.cancel(false);
+						refreshFuture = null;
+					}
+				}
+			}
+		});
 	}
 
 	private static void startHttpServer(MsCodeWrapper msCodeWrapper) {
@@ -127,23 +141,21 @@ public final class Main {
 		return qs.parameters().get("code").getFirst();
 	}
 
-	@RequiredArgsConstructor
-	private static final class ScoreboardRefreshTask extends TimerTask {
-		private final BfDataCache dataCache;
-
-		@Override
-		public void run() {
-			BfCloudData cloudData;
-			try {
-				cloudData = dataCache.cloudData.get().get(10, TimeUnit.SECONDS);
-			} catch (InterruptedException | TimeoutException e) {
-				return;
-			} catch (ExecutionException e) {
-				throw new RuntimeException(e);
-			}
-
-			dataCache.playerData.request(cloudData.playerScores().keySet(), true);
-			dataCache.clanData.request(cloudData.clanScores().keySet(), true);
+	private static void refreshScoreboardMembers(BfConnection connection) {
+		if (!connection.isConnectedAndVerified()) {
+			return;
 		}
+
+		BfCloudData cloudData;
+		try {
+			cloudData = connection.dataCache.cloudData.get().get(10, TimeUnit.SECONDS);
+		} catch (InterruptedException | TimeoutException e) {
+			return;
+		} catch (ExecutionException e) {
+			throw new RuntimeException(e);
+		}
+
+		connection.dataCache.playerData.request(cloudData.playerScores().keySet(), true);
+		connection.dataCache.clanData.request(cloudData.clanScores().keySet(), true);
 	}
 }

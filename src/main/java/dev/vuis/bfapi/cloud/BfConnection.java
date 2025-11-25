@@ -37,11 +37,16 @@ import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.Random;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import javax.crypto.SecretKey;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -55,9 +60,12 @@ public class BfConnection extends Connection<BfPlayerData> {
 	public final BfDataCache dataCache = new BfDataCache(this);
 	public final CloudRegistry registry = new CloudRegistry();
 
-	private final KeyPair clientKeyPair;
+	private final ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
+	private @Nullable ScheduledFuture<?> heartbeatFuture;
 
-	private final Timer heartbeatTimer = new Timer("heartbeat timer");
+	private final Set<Consumer<ConnectionStatus>> statusListeners = new HashSet<>();
+
+	private final KeyPair clientKeyPair;
 
 	{
 		try {
@@ -117,7 +125,7 @@ public class BfConnection extends Connection<BfPlayerData> {
 		return channel;
 	}
 
-	public boolean isConnected() {
+	public boolean isConnectedAndVerified() {
 		return channel != null && channel.isActive() && getStatus().isVerified();
 	}
 
@@ -185,16 +193,28 @@ public class BfConnection extends Connection<BfPlayerData> {
 			case CONNECTED_VERIFIED -> {
 				log.info("cloud connection verified");
 
-				heartbeatTimer.schedule(new TimerTask() {
-					@Override
-					public void run() {
-						if (isConnected()) {
-							sendPacket(new ClientHeartBeatPacket());
-						}
-					}
-				}, 5 * 1000, 15 * 1000);
+				if (heartbeatFuture == null) {
+					heartbeatFuture = heartbeatExecutor.scheduleAtFixedRate(
+						this::heartbeat,
+						5, 15, TimeUnit.SECONDS
+					);
+				}
 			}
 		}
+
+		for (Consumer<ConnectionStatus> statusListener : statusListeners) {
+			statusListener.accept(status);
+		}
+	}
+
+	private void heartbeat() {
+		if (isConnectedAndVerified()) {
+			sendPacket(new ClientHeartBeatPacket());
+		}
+	}
+
+	public void addStatusListener(Consumer<ConnectionStatus> statusListener) {
+		statusListeners.add(statusListener);
 	}
 
 	@Override
@@ -209,13 +229,16 @@ public class BfConnection extends Connection<BfPlayerData> {
 
 	@Override
 	public void disconnect(@NotNull String reason, boolean sendLogout) {
-		if (isConnectionClosed() || channel == null) {
+		if (channel == null || isConnectionClosed()) {
 			return;
 		}
 
 		log.warn("cloud disconnected: {}", reason);
 
-		heartbeatTimer.cancel();
+		if (heartbeatFuture != null) {
+			heartbeatFuture.cancel(false);
+			heartbeatFuture = null;
+		}
 
 		if (sendLogout) {
 			sendPacket(new ClientLogoutPacket());

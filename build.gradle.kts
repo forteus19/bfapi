@@ -40,5 +40,5 @@ tasks.test {
 }
 
 application {
-    mainClass = "dev.vuis.bfapi.Main"
+    mainClass = "dev.vuis.bfapi.main.ApiMain"
 }
