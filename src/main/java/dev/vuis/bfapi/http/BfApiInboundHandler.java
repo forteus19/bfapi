@@ -168,7 +168,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		} catch (TimeoutException e) {
 			return Responses.error(
 				ctx, msg,
-				HttpResponseStatus.GATEWAY_TIMEOUT,
+				HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"packet_timeout"
 			);
 		}
@@ -212,7 +212,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		} catch (TimeoutException e) {
 			return Responses.error(
 				ctx, msg,
-				HttpResponseStatus.GATEWAY_TIMEOUT,
+				HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"packet_timeout"
 			);
 		}
@@ -307,7 +307,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		} catch (TimeoutException e) {
 			return Responses.error(
 				ctx, msg,
-				HttpResponseStatus.GATEWAY_TIMEOUT,
+				HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"packet_timeout"
 			);
 		}
@@ -441,7 +441,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		} catch (TimeoutException e) {
 			return Responses.error(
 				ctx, msg,
-				HttpResponseStatus.GATEWAY_TIMEOUT,
+				HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"packet_timeout"
 			);
 		}
