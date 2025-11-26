@@ -1,8 +1,11 @@
 package dev.vuis.bfapi.util;
 
+import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.google.gson.FormattingStyle;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import dev.vuis.bfapi.cloud.BfPlayerData;
+import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
@@ -27,6 +30,16 @@ public final class Util {
 
 	public static Gson gson(boolean pretty) {
 		return pretty ? PRETTY_GSON : COMPACT_GSON;
+	}
+
+	public static <T> Consumer<T> unchecked(ThrowingConsumer<T> consumer) {
+		return t -> {
+			try {
+				consumer.accept(t);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+		};
 	}
 
 	public static <T> T apply(T obj, Consumer<T> applier) {
@@ -111,5 +124,31 @@ public final class Util {
 		}
 
 		return sb.toString();
+	}
+
+	public static @NotNull String getCachedPlayerName(@Nullable BfDataCache dataCache, @NotNull UUID uuid) {
+		String name = "Unknown";
+
+		if (dataCache != null) {
+			BfPlayerData playerData = dataCache.playerData.getIfPresent(uuid);
+			if (playerData != null) {
+				name = playerData.getUsername();
+			}
+		}
+
+		return name;
+	}
+
+	public static @NotNull String getCachedClanName(@Nullable BfDataCache dataCache, @NotNull UUID uuid) {
+		String name = "Unknown";
+
+		if (dataCache != null) {
+			AbstractClanData playerData = dataCache.clanData.getIfPresent(uuid);
+			if (playerData != null) {
+				name = playerData.getName();
+			}
+		}
+
+		return name;
 	}
 }

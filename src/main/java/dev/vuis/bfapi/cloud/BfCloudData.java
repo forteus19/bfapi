@@ -1,13 +1,14 @@
 package dev.vuis.bfapi.cloud;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.data.Serialization;
 import dev.vuis.bfapi.util.Util;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public record BfCloudData(
@@ -17,31 +18,39 @@ public record BfCloudData(
 	Map<UUID, Integer> playerScores,
 	Map<UUID, Integer> clanScores
 ) {
-	public JsonObject serialize(@Nullable BfDataCache dataCache) {
-		JsonObject root = new JsonObject();
-		root.addProperty("players_online", usersOnline);
-		root.add("game_player_count", Util.apply(new JsonObject(), gamePlayerCountObj -> {
-			for (Map.Entry<String, Integer> entry : gamePlayerCount.entrySet()) {
-				gamePlayerCountObj.addProperty(entry.getKey(), entry.getValue());
-			}
-		}));
-		root.addProperty("scoreboard_reset_time", scoreboardResetTime.toString());
-		root.add("player_scores", Util.apply(new JsonArray(), playerScoresObj -> {
-			playerScores.entrySet().stream()
-				.sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
-				.forEach(entry -> playerScoresObj.add(Util.apply(
-					Serialization.getPlayerStub(entry.getKey(), dataCache),
-					playerScore -> playerScore.addProperty("score", entry.getValue())
-				)));
-		}));
-		root.add("clan_scores", Util.apply(new JsonArray(), clanScoresObj -> {
-			clanScores.entrySet().stream()
-				.sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
-				.forEach(entry -> clanScoresObj.add(Util.apply(
-					Serialization.getClanStub(entry.getKey(), dataCache),
-					clanScore -> clanScore.addProperty("score", entry.getValue())
-				)));
-		}));
-		return root;
+	public @NotNull JsonWriter serialize(@NotNull JsonWriter w, @Nullable BfDataCache dataCache) throws IOException {
+		w.beginObject();
+
+		w.name("players_online").value(usersOnline);
+		w.name("game_player_count").beginObject();
+		for (Map.Entry<String, Integer> entry : gamePlayerCount.entrySet()) {
+			w.name(entry.getKey()).value(entry.getValue());
+		}
+		w.endObject();
+		w.name("scoreboard_reset_time").value(scoreboardResetTime.toString());
+		w.name("player_scores").beginArray();
+		playerScores.entrySet().stream()
+			.sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+			.forEach(Util.unchecked(entry -> {
+				w.beginObject();
+				Serialization.playerStub(w, dataCache, entry.getKey());
+				w.name("score").value(entry.getValue());
+				w.endObject();
+			}));
+		w.endArray();
+		w.name("clan_scores").beginArray();
+		clanScores.entrySet().stream()
+			.sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+			.forEach(Util.unchecked(entry -> {
+				w.beginObject();
+				Serialization.clanStub(w, dataCache, entry.getKey());
+				w.name("score").value(entry.getValue());
+				w.endObject();
+			}));
+		w.endArray();
+
+		w.endObject();
+
+		return w;
 	}
 }

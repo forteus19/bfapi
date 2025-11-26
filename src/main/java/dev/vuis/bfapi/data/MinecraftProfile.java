@@ -4,6 +4,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.gson.JsonObject;
 import dev.vuis.bfapi.util.Util;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -43,7 +44,9 @@ public record MinecraftProfile(
 
 		HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 		if (!Util.isSuccess(response.statusCode())) {
-			log.error("minecraft profile lookup failed for {} ({}):\n{}", name, response.statusCode(), response.body());
+			if (response.statusCode() != HttpResponseStatus.NOT_FOUND.code()) {
+				log.error("minecraft profile lookup failed for {} ({}):\n{}", name, response.statusCode(), response.body());
+			}
 
 			CACHE_BY_NAME.put(lookupName, Optional.empty());
 			return Optional.empty();

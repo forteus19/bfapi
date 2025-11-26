@@ -1,9 +1,12 @@
 package dev.vuis.bfapi.http;
 
-import com.google.gson.JsonObject;
+import com.boehmod.bflib.cloud.common.AbstractClanData;
+import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
 import dev.vuis.bfapi.auth.MsCodeWrapper;
+import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.BfPlayerData;
+import dev.vuis.bfapi.cloud.BfPlayerInventory;
 import dev.vuis.bfapi.data.MinecraftProfile;
 import dev.vuis.bfapi.data.Serialization;
 import dev.vuis.bfapi.util.Responses;
@@ -156,10 +159,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-		JsonObject data;
+		AbstractClanData data;
 		try {
 			data = connection.dataCache.clanData.get(uuid.orElseThrow())
-				.thenApply(clanData -> Serialization.clan(clanData, connection.dataCache))
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving clan data", e);
@@ -179,8 +181,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		return Responses.json(
 			ctx, msg,
 			HttpResponseStatus.OK,
-			data,
-			true
+			w -> Serialization.clan(w, data, connection.dataCache)
 		);
 	}
 
@@ -200,10 +201,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-		JsonObject data;
+		BfCloudData data;
 		try {
 			data = connection.dataCache.cloudData.get()
-				.thenApply(cloudData -> cloudData.serialize(connection.dataCache))
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving cloud data", e);
@@ -223,8 +223,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		return Responses.json(
 			ctx, msg,
 			HttpResponseStatus.OK,
-			data,
-			true
+			w -> data.serialize(w, connection.dataCache)
 		);
 	}
 
@@ -295,10 +294,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			uuid = profile.orElseThrow().uuid();
 		}
 
-		JsonObject data;
+		BfPlayerData data;
 		try {
 			data = connection.dataCache.playerData.get(uuid)
-				.thenApply(BfPlayerData::serialize)
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving player data", e);
@@ -318,8 +316,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		return Responses.json(
 			ctx, msg,
 			HttpResponseStatus.OK,
-			data,
-			true
+			data::serialize
 		);
 	}
 
@@ -415,24 +412,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			uuid = profile.orElseThrow().uuid();
 		}
 
-		JsonObject data;
+		BfPlayerInventory data;
 		try {
-			final boolean finalIncludeUuid = includeUuid;
-			final boolean finalIncludeDetails = includeDetails;
 			data = connection.dataCache.playerInventory.get(uuid)
-				.thenApply(playerInventory -> Serialization.playerInventory(
-					playerInventory,
-					connection.registry,
-					finalIncludeUuid,
-					finalIncludeDetails
-				))
-				.thenApply(inventoryData -> {
-					inventoryData.add("player", hasName ?
-						Serialization.getPlayerStub(uuid, qs.parameters().get("name").getFirst()) :
-						Serialization.getPlayerStub(uuid, connection.dataCache)
-					);
-					return inventoryData;
-				})
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving player data", e);
@@ -449,11 +431,20 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
+
+		boolean finalIncludeUuid = includeUuid;
+		boolean finalIncludeDetails = includeDetails;
 		return Responses.json(
 			ctx, msg,
 			HttpResponseStatus.OK,
-			data,
-			false
+			w -> Serialization.playerInventory(
+				w, data, connection.registry, finalIncludeUuid, finalIncludeDetails,
+				Util.unchecked(w2 -> {
+					w2.name("player").beginObject();
+					Serialization.playerStub(w2, connection.dataCache, uuid);
+					w2.endObject();
+				})
+			)
 		);
 	}
 
@@ -524,17 +515,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			uuid = profile.orElseThrow().uuid();
 		}
 
-		JsonObject data;
+		PlayerStatus data;
 		try {
 			data = connection.dataCache.playerStatus.get(uuid)
-				.thenApply(playerStatus -> Serialization.playerStatus(playerStatus, connection.dataCache))
-				.thenApply(statusData -> {
-					statusData.add("player", hasName ?
-						Serialization.getPlayerStub(uuid, qs.parameters().get("name").getFirst()) :
-						Serialization.getPlayerStub(uuid, connection.dataCache)
-					);
-					return statusData;
-				})
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving player data", e);
@@ -554,8 +537,14 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		return Responses.json(
 			ctx, msg,
 			HttpResponseStatus.OK,
-			data,
-			true
+			w -> Serialization.playerStatus(
+				w, data, connection.dataCache,
+				Util.unchecked(w2 -> {
+					w2.name("player").beginObject();
+					Serialization.playerStub(w2, connection.dataCache, uuid);
+					w2.endObject();
+				})
+			)
 		);
 	}
 }

@@ -9,149 +9,169 @@ import com.boehmod.bflib.cloud.common.player.challenge.Challenge;
 import com.boehmod.bflib.cloud.common.player.challenge.ItemKillChallenge;
 import com.boehmod.bflib.cloud.common.player.challenge.KillCountChallenge;
 import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import dev.vuis.bfapi.cloud.BfPlayerData;
+import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.cloud.BfPlayerInventory;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
+import dev.vuis.bfapi.util.JsonUtil;
 import dev.vuis.bfapi.util.Util;
-import java.util.Collection;
+import java.io.IOException;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class Serialization {
 	private Serialization() {
 	}
 
-	public static JsonObject challenge(Challenge challenge) {
-		JsonObject root = new JsonObject();
+	public static @NotNull JsonWriter challenge(@NotNull JsonWriter w, @NotNull Challenge challenge) throws IOException {
+		w.beginObject();
+
 		switch (challenge) {
 			case KillCountChallenge killCount -> {
-				root.addProperty("type", "kill_count");
-				root.addProperty("required", killCount.getAmountRequired());
-				root.addProperty("amount", killCount.getAmount());
+				w.name("type").value("kill_count");
+				w.name("required").value(killCount.getAmountRequired());
+				w.name("amount").value(killCount.getAmount());
 			}
 			case ItemKillChallenge itemKill -> {
-				root.addProperty("type", "item_kill");
-				root.addProperty("item", itemKill.getItem().toString());
-				root.addProperty("required", itemKill.getAmountRequired());
-				root.addProperty("amount", itemKill.getAmount());
+				w.name("type").value("item_kill");
+				w.name("item").value(itemKill.getItem().toString());
+				w.name("required").value(itemKill.getAmountRequired());
+				w.name("amount").value(itemKill.getAmount());
 			}
 			default -> throw new IllegalArgumentException("unknown challenge implementation");
 		}
-		root.addProperty("reward", challenge.getExpReward());
-		return root;
+		w.name("reward").value(challenge.getExpReward());
+
+		w.endObject();
+
+		return w;
 	}
 
-	public static JsonObject clan(AbstractClanData clan, @Nullable BfDataCache dataCache) {
-		JsonObject root = new JsonObject();
-		root.addProperty("uuid", clan.getClanId().toString());
-		root.addProperty("name", clan.getName());
-		root.add("owner", getPlayerStub(clan.getOwner(), dataCache));
-		root.add("members", Util.apply(new JsonArray(), members -> {
-			for (UUID member : clan.getMembers()) {
-				members.add(getPlayerStub(member, dataCache));
-			}
-		}));
-		return root;
+	public static @NotNull JsonWriter clan(@NotNull JsonWriter w, @NotNull AbstractClanData clan, @Nullable BfDataCache dataCache) throws IOException {
+		w.beginObject();
+
+		w.name("uuid").value(clan.getClanId().toString());
+		w.name("name").value(clan.getName());
+		w.name("owner").beginObject();
+		playerStub(w, dataCache, clan.getOwner()).endObject();
+		w.name("members").beginArray();
+		for (UUID member : clan.getMembers()) {
+			w.beginObject();
+			playerStub(w, dataCache, member);
+			w.endObject();
+		}
+		w.endArray();
+
+		w.endObject();
+
+		return w;
 	}
 
-	public static JsonObject cloudItemStack(CloudItemStack stack, CloudRegistry registry, boolean includeUuid, boolean includeDetails) {
-		CloudItem<?> item = stack.getCloudItem(registry);
-		assert item != null;
+	public static @NotNull JsonWriter cloudItemStack(@NotNull JsonWriter w, @NotNull CloudItemStack stack, @NotNull CloudItem<?> item, boolean includeUuid, boolean includeDetails) throws IOException {
+		w.beginObject();
 
-		JsonObject root = new JsonObject();
 		if (includeUuid) {
-			root.addProperty("uuid", stack.getUUID().toString());
+			w.name("uuid").value(stack.getUUID().toString());
 		}
-		root.addProperty("id", stack.getItemId());
+		w.name("id").value(stack.getItemId());
 		if (includeDetails) {
-			root.addProperty("display_name", item.getDisplayName());
-			root.addProperty("rarity", item.getRarity().getName().toLowerCase());
-			root.addProperty("type", item.getItemType().toString().toLowerCase());
+			w.name("display_name").value(item.getDisplayName());
+			w.name("rarity").value(item.getRarity().toString().toLowerCase());
+			w.name("type").value(item.getItemType().toString().toLowerCase());
 		}
-		root.addProperty("mint", stack.getMint());
-		stack.getNameTag().ifPresent(nameTag -> root.addProperty("name_tag", nameTag));
-
-		return root;
-	}
-
-	public static JsonObject matchData(MatchData matchData, @Nullable BfDataCache dataCache) {
-		JsonObject root = new JsonObject();
-		root.addProperty("map_name", matchData.getMapName());
-		root.addProperty("game", matchData.getGame().getId());
-		root.addProperty("max_players", matchData.getMaxPlayerCount());
-		root.addProperty("accepting_players", matchData.isAcceptingPlayers());
-		root.add("players", Util.apply(new JsonArray(), players -> {
-			for (UUID player : matchData.getPlayers()) {
-				players.add(getPlayerStub(player, dataCache));
-			}
-		}));
-		return root;
-	}
-
-	public static JsonObject playerInventory(BfPlayerInventory inventory, CloudRegistry registry, boolean includeUuid, boolean includeDetails) {
-		Collection<CloudItemStack> itemsSorted = inventory.getItems();
-
-		JsonObject root = new JsonObject();
-		root.add("inventory", Util.apply(new JsonArray(), inventoryArray -> {
-			for (CloudItemStack itemStack : itemsSorted) {
-				CloudItem<?> item = itemStack.getCloudItem(registry);
-				assert item != null;
-
-				if (!item.isDefault()) {
-					inventoryArray.add(cloudItemStack(itemStack, registry, includeUuid, includeDetails));
-				}
-			}
-		}));
-
-		return root;
-	}
-
-	public static JsonObject playerStatus(PlayerStatus status, @Nullable BfDataCache dataCache) {
-		JsonObject root = new JsonObject();
-		root.addProperty("online", status.getOnlineStatus().isOnline());
-		root.addProperty("party", status.getPartyStatus().toString().toLowerCase());
-		root.addProperty("server", Util.ifNonNull(status.getServerOn(), UUID::toString));
-		root.add("match", Util.ifNonNull(status.getMatchData(), matchData -> Serialization.matchData(matchData, dataCache)));
-		return root;
-	}
-
-	public static JsonObject getPlayerStub(UUID uuid, @Nullable BfDataCache dataCache) {
-		String name = "Unknown";
-		if (dataCache != null) {
-			BfPlayerData playerData = dataCache.playerData.getIfPresent(uuid);
-			if (playerData != null) {
-				name = playerData.getUsername();
-			}
+		w.name("mint").value(stack.getMint());
+		Optional<String> nameTag = stack.getNameTag();
+		if (nameTag.isPresent()) {
+			w.name("name_tag").value(nameTag.orElseThrow());
 		}
 
-		return getPlayerStub(uuid, name);
+		w.endObject();
+
+		return w;
 	}
 
-	public static JsonObject getPlayerStub(UUID uuid, String name) {
-		JsonObject root = new JsonObject();
+	public static @NotNull JsonWriter matchData(@NotNull JsonWriter w, @NotNull MatchData matchData, @Nullable BfDataCache dataCache) throws IOException {
+		w.beginObject();
 
-		root.addProperty("uuid", uuid.toString());
-		root.addProperty("name", name);
+		w.name("game").value(matchData.getGame().getId());
+		w.name("map_name").value(matchData.getMapName());
+		w.name("max_players").value(matchData.getMaxPlayerCount());
+		w.name("accepting_players").value(matchData.isAcceptingPlayers());
+		w.name("players").beginArray();
+		for (UUID player : matchData.getPlayers()) {
+			w.beginObject();
+			playerStub(w, dataCache, player);
+			w.endObject();
+		}
+		w.endArray();
 
-		return root;
+		w.endObject();
+
+		return w;
 	}
 
-	public static JsonObject getClanStub(UUID uuid, @Nullable BfDataCache dataCache) {
-		JsonObject root = new JsonObject();
+	public static @NotNull JsonWriter playerInventory(@NotNull JsonWriter w, @NotNull BfPlayerInventory inventory, @NotNull CloudRegistry registry, boolean includeUuid, boolean includeDetails, @Nullable Consumer<JsonWriter> extra) throws IOException {
+		w.beginObject();
 
-		String name = "Unknown";
-		if (dataCache != null) {
-			AbstractClanData clanData = dataCache.clanData.getIfPresent(uuid);
-			if (clanData != null) {
-				name = clanData.getName();
+		w.name("inventory").beginArray();
+		for (CloudItemStack itemStack : inventory.getItems()) {
+			CloudItem<?> item = itemStack.getCloudItem(registry);
+			assert item != null;
+
+			if (!item.isDefault()) {
+				cloudItemStack(w, itemStack, item, includeUuid, includeDetails);
 			}
 		}
+		w.endArray();
 
-		root.addProperty("uuid", uuid.toString());
-		root.addProperty("name", name);
+		if (extra != null) {
+			extra.accept(w);
+		}
 
-		return root;
+		w.endObject();
+
+		return w;
+	}
+
+	public static @NotNull JsonWriter playerStatus(@NotNull JsonWriter w, @NotNull PlayerStatus status, @Nullable BfDataCache dataCache, @Nullable Consumer<JsonWriter> extra) throws IOException {
+		w.beginObject();
+
+		w.name("online").value(status.getOnlineStatus().isOnline());
+		w.name("party").value(status.getPartyStatus().toString().toLowerCase());
+		w.name("server");
+		JsonUtil.nullableValue(w, Util.ifNonNull(status.getServerOn(), UUID::toString));
+		w.name("match");
+		MatchData matchData = status.getMatchData();
+		if (matchData != null) {
+			matchData(w, matchData, dataCache);
+		} else {
+			w.nullValue();
+		}
+
+		if (extra != null) {
+			extra.accept(w);
+		}
+
+		w.endObject();
+
+		return w;
+	}
+
+	public static @NotNull JsonWriter playerStub(@NotNull JsonWriter w, @Nullable BfDataCache dataCache, @NotNull UUID uuid) throws IOException {
+		namedStub(w, uuid, Util.getCachedPlayerName(dataCache, uuid));
+		return w;
+	}
+
+	public static @NotNull JsonWriter clanStub(@NotNull JsonWriter w, @Nullable BfDataCache dataCache, @NotNull UUID uuid) throws IOException {
+		namedStub(w, uuid, Util.getCachedClanName(dataCache, uuid));
+		return w;
+	}
+
+	public static @NotNull JsonWriter namedStub(@NotNull JsonWriter w, @NotNull UUID uuid, @NotNull String name) throws IOException {
+		w.name("uuid").value(uuid.toString());
+		w.name("name").value(name);
+		return w;
 	}
 }
