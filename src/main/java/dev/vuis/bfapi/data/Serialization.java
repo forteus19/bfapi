@@ -1,17 +1,20 @@
-package dev.vuis.bfapi.util;
+package dev.vuis.bfapi.data;
 
 import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.boehmod.bflib.cloud.common.CloudRegistry;
+import com.boehmod.bflib.cloud.common.MatchData;
 import com.boehmod.bflib.cloud.common.item.CloudItem;
 import com.boehmod.bflib.cloud.common.item.CloudItemStack;
 import com.boehmod.bflib.cloud.common.player.challenge.Challenge;
 import com.boehmod.bflib.cloud.common.player.challenge.ItemKillChallenge;
 import com.boehmod.bflib.cloud.common.player.challenge.KillCountChallenge;
+import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.BfPlayerInventory;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
+import dev.vuis.bfapi.util.Util;
 import java.util.Collection;
 import java.util.UUID;
 import org.jetbrains.annotations.Nullable;
@@ -73,6 +76,21 @@ public final class Serialization {
 		return root;
 	}
 
+	public static JsonObject matchData(MatchData matchData, @Nullable BfDataCache dataCache) {
+		JsonObject root = new JsonObject();
+		root.addProperty("uuid", matchData.getUUID().toString());
+		root.add("players", Util.apply(new JsonArray(), players -> {
+			for (UUID player : matchData.getPlayers()) {
+				players.add(getPlayerStub(player, dataCache));
+			}
+		}));
+		root.addProperty("map_name", matchData.getMapName());
+		root.addProperty("game", matchData.getGame().getId());
+		root.addProperty("max_players", matchData.getMaxPlayerCount());
+		root.addProperty("accepting_players", matchData.isAcceptingPlayers());
+		return root;
+	}
+
 	public static JsonObject playerInventory(BfPlayerInventory inventory, CloudRegistry registry, boolean includeUuid, boolean includeDetails) {
 		Collection<CloudItemStack> itemsSorted = inventory.getItems();
 
@@ -88,6 +106,15 @@ public final class Serialization {
 			}
 		}));
 
+		return root;
+	}
+
+	public static JsonObject playerStatus(PlayerStatus status, @Nullable BfDataCache dataCache) {
+		JsonObject root = new JsonObject();
+		root.addProperty("online", status.getOnlineStatus().isOnline());
+		root.addProperty("party", status.getPartyStatus().toString().toLowerCase());
+		root.addProperty("server", Util.ifNonNull(status.getServerOn(), UUID::toString));
+		root.add("match", Util.ifNonNull(status.getMatchData(), matchData -> Serialization.matchData(matchData, dataCache)));
 		return root;
 	}
 

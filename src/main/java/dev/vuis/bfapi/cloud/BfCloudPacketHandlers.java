@@ -1,6 +1,7 @@
 package dev.vuis.bfapi.cloud;
 
 import com.boehmod.bflib.cloud.common.player.PlayerDataContext;
+import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
 import com.boehmod.bflib.cloud.packet.IPacket;
 import com.boehmod.bflib.cloud.packet.IPacketHandlerFunction;
 import com.boehmod.bflib.cloud.packet.PacketRegistry;
@@ -11,6 +12,7 @@ import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedCloudData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedInventory;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerDataSet;
+import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerStatusSet;
 import com.boehmod.bflib.cloud.packet.common.server.PacketServerNotification;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -33,6 +35,7 @@ public final class BfCloudPacketHandlers {
 		registerPacketHandler(PacketRequestedInventory.class, BfCloudPacketHandlers::requestedInventory);
 		registerPacketHandler(PacketRequestedPlayerData.class, BfCloudPacketHandlers::requestedPlayerData);
 		registerPacketHandler(PacketRequestedPlayerDataSet.class, BfCloudPacketHandlers::requestedPlayerDataSet);
+		registerPacketHandler(PacketRequestedPlayerStatusSet.class, BfCloudPacketHandlers::requestedPlayerStatusSet);
 		registerPacketHandler(PacketServerNotification.class, BfCloudPacketHandlers::serverNotification);
 	}
 
@@ -73,6 +76,12 @@ public final class BfCloudPacketHandlers {
 	private static void requestedPlayerDataSet(PacketRequestedPlayerDataSet packet, BfConnection connection) {
 		for (Map.Entry<UUID, Pair<PlayerDataContext, byte[]>> entry : packet.dataSet().entrySet()) {
 			handlePlayerData(entry.getKey(), entry.getValue().left(), entry.getValue().right(), connection);
+		}
+	}
+
+	private static void requestedPlayerStatusSet(PacketRequestedPlayerStatusSet packet, BfConnection connection) {
+		for (Map.Entry<UUID, PlayerStatus> entry : packet.statusSet().entrySet()) {
+			connection.dataCache.playerStatus.complete(entry.getKey(), entry.getValue());
 		}
 	}
 

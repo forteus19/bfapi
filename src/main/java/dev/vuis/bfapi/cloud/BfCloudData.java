@@ -3,7 +3,7 @@ package dev.vuis.bfapi.cloud;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
-import dev.vuis.bfapi.util.Serialization;
+import dev.vuis.bfapi.data.Serialization;
 import dev.vuis.bfapi.util.Util;
 import java.time.Instant;
 import java.util.Map;
