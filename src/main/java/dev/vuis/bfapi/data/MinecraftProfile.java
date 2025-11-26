@@ -43,6 +43,8 @@ public record MinecraftProfile(
 
 		HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 		if (!Util.isSuccess(response.statusCode())) {
+			log.error("minecraft profile lookup failed for {} ({}):\n{}", name, response.statusCode(), response.body());
+
 			CACHE_BY_NAME.put(lookupName, Optional.empty());
 			return Optional.empty();
 		}
