@@ -78,16 +78,15 @@ public final class Serialization {
 
 	public static JsonObject matchData(MatchData matchData, @Nullable BfDataCache dataCache) {
 		JsonObject root = new JsonObject();
-		root.addProperty("uuid", matchData.getUUID().toString());
+		root.addProperty("map_name", matchData.getMapName());
+		root.addProperty("game", matchData.getGame().getId());
+		root.addProperty("max_players", matchData.getMaxPlayerCount());
+		root.addProperty("accepting_players", matchData.isAcceptingPlayers());
 		root.add("players", Util.apply(new JsonArray(), players -> {
 			for (UUID player : matchData.getPlayers()) {
 				players.add(getPlayerStub(player, dataCache));
 			}
 		}));
-		root.addProperty("map_name", matchData.getMapName());
-		root.addProperty("game", matchData.getGame().getId());
-		root.addProperty("max_players", matchData.getMaxPlayerCount());
-		root.addProperty("accepting_players", matchData.isAcceptingPlayers());
 		return root;
 	}
 
