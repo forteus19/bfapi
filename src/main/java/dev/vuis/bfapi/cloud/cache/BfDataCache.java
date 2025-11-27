@@ -47,6 +47,4 @@ public class BfDataCache {
 				.build()
 		);
 	}
-
-
 }

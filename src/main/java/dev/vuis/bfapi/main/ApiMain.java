@@ -100,8 +100,8 @@ public final class ApiMain {
 		consoleScanner.nextLine();
 
 		BfCloudPacketHandlers.register();
-		BfConnection connection = new BfConnection(mcAuth, mcProfile, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
-		connection.connect(BF_CLOUD_ADDRESS);
+		BfConnection connection = new BfConnection(BF_CLOUD_ADDRESS, mcAuth, mcProfile, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
+		connection.connect();
 
 		inboundHandler.connection = connection;
 

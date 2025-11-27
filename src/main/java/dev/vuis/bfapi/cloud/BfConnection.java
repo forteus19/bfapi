@@ -55,6 +55,8 @@ import org.jetbrains.annotations.Nullable;
 
 @Slf4j
 public class BfConnection extends Connection<BfPlayerData> {
+	private static final int MAX_CONNECT_ATTEMPTS = 5;
+
 	private static final Random SECURE_RANDOM = new SecureRandom();
 
 	public final BfDataCache dataCache = new BfDataCache(this);
@@ -62,6 +64,8 @@ public class BfConnection extends Connection<BfPlayerData> {
 
 	private final ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
 	private @Nullable ScheduledFuture<?> heartbeatFuture;
+
+	private final ScheduledExecutorService reconnectExecutor = Executors.newSingleThreadScheduledExecutor();
 
 	private final Set<Consumer<ConnectionStatus>> statusListeners = new HashSet<>();
 
@@ -75,6 +79,7 @@ public class BfConnection extends Connection<BfPlayerData> {
 		}
 	}
 
+	private final SocketAddress address;
 	private final MinecraftAuth mcAuth;
 	private final MinecraftProfile mcProfile;
 	private final String version;
@@ -83,9 +88,11 @@ public class BfConnection extends Connection<BfPlayerData> {
 
 	@Getter
 	private @Nullable Channel channel = null;
+	private int connectAttempts = 0;
 
-	public BfConnection(MinecraftAuth mcAuth, MinecraftProfile mcProfile, String version, String versionHash, byte[] hardwareId) {
+	public BfConnection(SocketAddress address, MinecraftAuth mcAuth, MinecraftProfile mcProfile, String version, String versionHash, byte[] hardwareId) {
 		super(30 * 20);
+		this.address = address;
 		this.mcAuth = mcAuth;
 		this.mcProfile = mcProfile;
 		this.version = version;
@@ -96,7 +103,7 @@ public class BfConnection extends Connection<BfPlayerData> {
 		CloudItems.registerItems(registry);
 	}
 
-	public void connect(SocketAddress address) {
+	public void connect() {
 		log.info("connecting to cloud at {}", address);
 
 		Bootstrap bootstrap = new Bootstrap()
@@ -106,14 +113,16 @@ public class BfConnection extends Connection<BfPlayerData> {
 			.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30_000)
 			.handler(new BfCloudChannelInitializer(this));
 
+		connectAttempts++;
 		bootstrap.connect(address).addListener((ChannelFutureListener) channelFuture -> {
 			if (channelFuture.isSuccess()) {
 				log.info("cloud connection established at {}", address);
 				channel = channelFuture.channel();
 				sendCredentials();
 			} else {
-				log.info("failed to connect to cloud at {}", address);
+				log.error("failed to connect to cloud at {}", address);
 				channel = null;
+				reconnect(false);
 			}
 		});
 	}
@@ -192,6 +201,7 @@ public class BfConnection extends Connection<BfPlayerData> {
 			}
 			case CONNECTED_VERIFIED -> {
 				log.info("cloud connection verified");
+				connectAttempts = 0;
 
 				if (heartbeatFuture == null) {
 					heartbeatFuture = heartbeatExecutor.scheduleAtFixedRate(
@@ -199,6 +209,11 @@ public class BfConnection extends Connection<BfPlayerData> {
 						5, 15, TimeUnit.SECONDS
 					);
 				}
+
+				reconnectExecutor.schedule(
+					() -> reconnect(true),
+					30, TimeUnit.MINUTES
+				);
 			}
 		}
 
@@ -210,6 +225,27 @@ public class BfConnection extends Connection<BfPlayerData> {
 	private void heartbeat() {
 		if (isConnectedAndVerified()) {
 			sendPacket(new ClientHeartBeatPacket());
+		}
+	}
+
+	private void reconnect(boolean connectNow) {
+		disconnect("reconnecting", true);
+
+		if (connectAttempts < MAX_CONNECT_ATTEMPTS) {
+			if (connectNow) {
+				log.info("reconnecting");
+
+				connect();
+			} else {
+				log.info("reconnecting in 60 seconds");
+
+				reconnectExecutor.schedule(
+					this::connect,
+					60, TimeUnit.SECONDS
+				);
+			}
+		} else {
+			log.error("failed to connect to cloud {} times; stopping", MAX_CONNECT_ATTEMPTS);
 		}
 	}
 
