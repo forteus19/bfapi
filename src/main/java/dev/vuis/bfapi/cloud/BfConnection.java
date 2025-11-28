@@ -210,10 +210,10 @@ public class BfConnection extends Connection<BfPlayerData> {
 					);
 				}
 
-				reconnectExecutor.schedule(
-					() -> reconnect(true),
-					30, TimeUnit.MINUTES
-				);
+//				reconnectExecutor.schedule(
+//					() -> reconnect(true),
+//					30, TimeUnit.MINUTES
+//				);
 			}
 		}
 
