@@ -11,6 +11,7 @@ import dev.vuis.bfapi.data.MinecraftProfile;
 import dev.vuis.bfapi.data.Serialization;
 import dev.vuis.bfapi.util.Responses;
 import dev.vuis.bfapi.util.Util;
+import dev.vuis.bfapi.util.cache.ExpiryHolder;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -159,7 +160,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-		AbstractClanData data;
+		ExpiryHolder<AbstractClanData> data;
 		try {
 			data = connection.dataCache.clanData.get(uuid.orElseThrow())
 				.get(10, TimeUnit.SECONDS);
@@ -178,11 +179,13 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-		return Responses.json(
+		FullHttpResponse response = Responses.json(
 			ctx, msg,
 			HttpResponseStatus.OK,
-			w -> Serialization.clan(w, data, connection.dataCache)
+			w -> Serialization.clan(w, data.value(), connection.dataCache)
 		);
+		Responses.cacheHeaders(response, data.expires());
+		return response;
 	}
 
 	private FullHttpResponse cloudData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
@@ -201,7 +204,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-		BfCloudData data;
+		ExpiryHolder<BfCloudData> data;
 		try {
 			data = connection.dataCache.cloudData.get()
 				.get(10, TimeUnit.SECONDS);
@@ -220,11 +223,13 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-		return Responses.json(
+		FullHttpResponse response = Responses.json(
 			ctx, msg,
 			HttpResponseStatus.OK,
-			w -> data.serialize(w, connection.dataCache)
+			w -> data.value().serialize(w, connection.dataCache)
 		);
+		Responses.cacheHeaders(response, data.expires());
+		return response;
 	}
 
 	private FullHttpResponse playerData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
@@ -294,7 +299,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			uuid = profile.orElseThrow().uuid();
 		}
 
-		BfPlayerData data;
+		ExpiryHolder<BfPlayerData> data;
 		try {
 			data = connection.dataCache.playerData.get(uuid)
 				.get(10, TimeUnit.SECONDS);
@@ -313,11 +318,13 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-		return Responses.json(
+		FullHttpResponse response = Responses.json(
 			ctx, msg,
 			HttpResponseStatus.OK,
-			data::serialize
+			w -> data.value().serialize(w)
 		);
+		Responses.cacheHeaders(response, data.expires());
+		return response;
 	}
 
 	private FullHttpResponse playerInventory(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
@@ -412,7 +419,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			uuid = profile.orElseThrow().uuid();
 		}
 
-		BfPlayerInventory data;
+		ExpiryHolder<BfPlayerInventory> data;
 		try {
 			data = connection.dataCache.playerInventory.get(uuid)
 				.get(10, TimeUnit.SECONDS);
@@ -431,14 +438,13 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-
 		boolean finalIncludeUuid = includeUuid;
 		boolean finalIncludeDetails = includeDetails;
-		return Responses.json(
+		FullHttpResponse response = Responses.json(
 			ctx, msg,
 			HttpResponseStatus.OK,
 			w -> Serialization.playerInventory(
-				w, data, connection.registry, finalIncludeUuid, finalIncludeDetails,
+				w, data.value(), connection.registry, finalIncludeUuid, finalIncludeDetails,
 				Util.unchecked(w2 -> {
 					w2.name("player").beginObject();
 					Serialization.playerStub(w2, connection.dataCache, uuid);
@@ -446,6 +452,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				})
 			)
 		);
+		Responses.cacheHeaders(response, data.expires());
+		return response;
 	}
 
 	private FullHttpResponse playerStatus(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
@@ -515,7 +523,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			uuid = profile.orElseThrow().uuid();
 		}
 
-		PlayerStatus data;
+		ExpiryHolder<PlayerStatus> data;
 		try {
 			data = connection.dataCache.playerStatus.get(uuid)
 				.get(10, TimeUnit.SECONDS);
@@ -534,11 +542,11 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
-		return Responses.json(
+		FullHttpResponse response = Responses.json(
 			ctx, msg,
 			HttpResponseStatus.OK,
 			w -> Serialization.playerStatus(
-				w, data, connection.dataCache,
+				w, data.value(), connection.dataCache,
 				Util.unchecked(w2 -> {
 					w2.name("player").beginObject();
 					Serialization.playerStub(w2, connection.dataCache, uuid);
@@ -546,5 +554,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				})
 			)
 		);
+		Responses.cacheHeaders(response, data.expires());
+		return response;
 	}
 }

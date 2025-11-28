@@ -1,4 +1,4 @@
-package dev.vuis.bfapi.cloud.cache;
+package dev.vuis.bfapi.util.cache;
 
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;

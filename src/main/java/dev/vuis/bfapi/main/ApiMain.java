@@ -148,7 +148,7 @@ public final class ApiMain {
 
 		BfCloudData cloudData;
 		try {
-			cloudData = connection.dataCache.cloudData.get().get(10, TimeUnit.SECONDS);
+			cloudData = connection.dataCache.cloudData.get().get(10, TimeUnit.SECONDS).value();
 		} catch (InterruptedException | TimeoutException e) {
 			return;
 		} catch (ExecutionException e) {

@@ -19,6 +19,6 @@ public class HttpFixerOutboundHandler extends ChannelOutboundHandlerAdapter {
 		if (!httpResponse.headers().contains(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN)) {
 			httpResponse.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
 		}
-		ctx.write(httpResponse, promise);
+		super.write(ctx, msg, promise);
 	}
 }

@@ -5,40 +5,49 @@ import com.boehmod.bflib.cloud.packet.common.PacketClientRequest;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import dev.vuis.bfapi.cloud.BfConnection;
+import dev.vuis.bfapi.util.cache.ExpiryHolder;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectList;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.Nullable;
 
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class IdentifiableCacheHolder<T> {
 	protected final BfConnection connection;
 	protected final RequestType requestType;
-	protected final Cache<UUID, T> cache;
+	protected final Duration lifetime;
+	protected final Cache<UUID, ExpiryHolder<T>> cache;
 
-	protected final Cache<UUID, CompletableFuture<T>> pendingCache = CacheBuilder.newBuilder()
+	protected final Cache<UUID, CompletableFuture<ExpiryHolder<T>>> pendingCache = CacheBuilder.newBuilder()
 		.expireAfterAccess(Duration.ofSeconds(15))
 		.build();
 
-	public CompletableFuture<T> get(UUID uuid) {
-		T cached = cache.getIfPresent(uuid);
+	IdentifiableCacheHolder(BfConnection connection, RequestType requestType, Duration lifetime) {
+		this.connection = connection;
+		this.requestType = requestType;
+		this.lifetime = lifetime;
+		this.cache = CacheBuilder.newBuilder()
+			.expireAfterWrite(lifetime)
+			.build();
+	}
+
+	public CompletableFuture<ExpiryHolder<T>> get(UUID uuid) {
+		ExpiryHolder<T> cached = cache.getIfPresent(uuid);
 		if (cached != null) {
 			return CompletableFuture.completedFuture(cached);
 		}
 
-		CompletableFuture<T> pending = pendingCache.getIfPresent(uuid);
+		CompletableFuture<ExpiryHolder<T>> pending = pendingCache.getIfPresent(uuid);
 		if (pending != null) {
 			return pending;
 		}
 
-		CompletableFuture<T> future = new CompletableFuture<>();
+		CompletableFuture<ExpiryHolder<T>> future = new CompletableFuture<>();
 		pendingCache.put(uuid, future);
 
 		request(uuid, true);
@@ -46,7 +55,7 @@ public class IdentifiableCacheHolder<T> {
 		return future;
 	}
 
-	public @Nullable T getIfPresent(UUID uuid) {
+	public @Nullable ExpiryHolder<T> getIfPresent(UUID uuid) {
 		return cache.getIfPresent(uuid);
 	}
 
@@ -83,16 +92,19 @@ public class IdentifiableCacheHolder<T> {
 	}
 
 	public void complete(UUID uuid, T data) {
-		CompletableFuture<T> future = pendingCache.getIfPresent(uuid);
+		ExpiryHolder<T> holder = new ExpiryHolder<>(data, Instant.now().plus(lifetime));
+
+		CompletableFuture<ExpiryHolder<T>> future = pendingCache.getIfPresent(uuid);
 		if (future != null) {
-			future.complete(data);
+			future.complete(holder);
 			pendingCache.invalidate(uuid);
 		}
-		cache.put(uuid, data);
+
+		cache.put(uuid, holder);
 	}
 
 	public void complete(UUID uuid, Exception e) {
-		CompletableFuture<T> future = pendingCache.getIfPresent(uuid);
+		CompletableFuture<ExpiryHolder<T>> future = pendingCache.getIfPresent(uuid);
 		if (future != null) {
 			future.completeExceptionally(e);
 			pendingCache.invalidate(uuid);

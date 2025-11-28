@@ -1,11 +1,11 @@
 package dev.vuis.bfapi.cloud.cache;
 
 import com.boehmod.bflib.cloud.common.RequestType;
-import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import dev.vuis.bfapi.cloud.BfConnection;
+import dev.vuis.bfapi.util.cache.TimedAccumulator;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -19,8 +19,8 @@ public class AccumulatedCacheHolder<T> extends IdentifiableCacheHolder<T> {
 
 	private final LoadingCache<UUID, TimedAccumulator<UUID, T>> accumulatorCache;
 
-	AccumulatedCacheHolder(BfConnection connection, RequestType requestType, Supplier<T> constructor, Cache<UUID, T> cache) {
-		super(connection, requestType, cache);
+	AccumulatedCacheHolder(BfConnection connection, RequestType requestType, Supplier<T> constructor, Duration lifetime) {
+		super(connection, requestType, lifetime);
 		accumulatorCache = CacheBuilder.newBuilder()
 			.expireAfterAccess(Duration.ofSeconds(1))
 			.build(new CacheLoader<>() {

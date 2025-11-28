@@ -3,7 +3,6 @@ package dev.vuis.bfapi.cloud.cache;
 import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.boehmod.bflib.cloud.common.RequestType;
 import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
-import com.google.common.cache.CacheBuilder;
 import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.BfPlayerData;
@@ -20,9 +19,7 @@ public class BfDataCache {
 	public BfDataCache(BfConnection connection) {
 		clanData = new IdentifiableCacheHolder<>(
 			connection, RequestType.CLAN_DATA,
-			CacheBuilder.newBuilder()
-				.expireAfterWrite(Duration.ofMinutes(5))
-				.build()
+			Duration.ofMinutes(5)
 		);
 		cloudData = new SingletonCacheHolder<>(
 			connection, RequestType.CLOUD_STATS,
@@ -30,21 +27,15 @@ public class BfDataCache {
 		);
 		playerData = new IdentifiableCacheHolder<>(
 			connection, RequestType.PLAYER_DATA,
-			CacheBuilder.newBuilder()
-				.expireAfterWrite(Duration.ofSeconds(90))
-				.build()
+			Duration.ofSeconds(90)
 		);
 		playerInventory = new AccumulatedCacheHolder<>(
 			connection, RequestType.PLAYER_INVENTORY, BfPlayerInventory::new,
-			CacheBuilder.newBuilder()
-				.expireAfterWrite(Duration.ofMinutes(5))
-				.build()
+			Duration.ofMinutes(5)
 		);
 		playerStatus = new IdentifiableCacheHolder<>(
 			connection, RequestType.PLAYER_STATUS,
-			CacheBuilder.newBuilder()
-				.expireAfterWrite(Duration.ofSeconds(30))
-				.build()
+			Duration.ofSeconds(30)
 		);
 	}
 }

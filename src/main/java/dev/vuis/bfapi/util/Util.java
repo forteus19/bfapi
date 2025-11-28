@@ -6,6 +6,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
+import dev.vuis.bfapi.util.cache.ExpiryHolder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
@@ -130,7 +131,7 @@ public final class Util {
 		String name = "Unknown";
 
 		if (dataCache != null) {
-			BfPlayerData playerData = dataCache.playerData.getIfPresent(uuid);
+			BfPlayerData playerData = Util.ifNonNull(dataCache.playerData.getIfPresent(uuid), ExpiryHolder::value);
 			if (playerData != null) {
 				name = playerData.getUsername();
 			}
@@ -143,7 +144,7 @@ public final class Util {
 		String name = "Unknown";
 
 		if (dataCache != null) {
-			AbstractClanData playerData = dataCache.clanData.getIfPresent(uuid);
+			AbstractClanData playerData = Util.ifNonNull(dataCache.clanData.getIfPresent(uuid), ExpiryHolder::value);
 			if (playerData != null) {
 				name = playerData.getName();
 			}
