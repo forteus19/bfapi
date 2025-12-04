@@ -6,6 +6,7 @@ import com.boehmod.bflib.cloud.packet.IPacket;
 import com.boehmod.bflib.cloud.packet.IPacketHandlerFunction;
 import com.boehmod.bflib.cloud.packet.PacketRegistry;
 import com.boehmod.bflib.cloud.packet.common.PacketChatMessageFromCloud;
+import com.boehmod.bflib.cloud.packet.common.PacketClientMessagePopup;
 import com.boehmod.bflib.cloud.packet.common.PacketNotificationFromCloud;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedClanData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedCloudData;
@@ -29,6 +30,7 @@ public final class BfCloudPacketHandlers {
 
 	public static void register() {
 		registerPacketHandler(PacketChatMessageFromCloud.class, BfCloudPacketHandlers::chatMessageFromCloud);
+		registerPacketHandler(PacketClientMessagePopup.class, BfCloudPacketHandlers::clientMessagePopup);
 		registerPacketHandler(PacketNotificationFromCloud.class, BfCloudPacketHandlers::notificationFromCloud);
 		registerPacketHandler(PacketRequestedClanData.class, BfCloudPacketHandlers::requestedClanData);
 		registerPacketHandler(PacketRequestedCloudData.class, BfCloudPacketHandlers::requestedCloudData);
@@ -45,6 +47,10 @@ public final class BfCloudPacketHandlers {
 
 	private static void chatMessageFromCloud(PacketChatMessageFromCloud packet, BfConnection connection) {
 		log.info("cloud chat message: {}", packet.message());
+	}
+
+	private static void clientMessagePopup(PacketClientMessagePopup packet, BfConnection connection) {
+		log.info("cloud popup message:\n{}\n{}\n{}", packet.type(), packet.title(), packet.message());
 	}
 
 	private static void notificationFromCloud(PacketNotificationFromCloud packet, BfConnection connection) {
