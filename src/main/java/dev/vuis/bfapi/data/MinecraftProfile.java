@@ -13,6 +13,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 
@@ -22,13 +23,19 @@ public record MinecraftProfile(
 	String username
 ) {
 	public static final Cache<String, Optional<MinecraftProfile>> CACHE_BY_NAME = CacheBuilder.newBuilder()
-		.expireAfterWrite(Duration.ofMinutes(10))
+		.expireAfterWrite(Duration.ofMinutes(30))
+		.maximumSize(500)
 		.build();
 
+	private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-z0-9_]{3,16}$", Pattern.CASE_INSENSITIVE);
 	private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
 	public static Optional<MinecraftProfile> retrieveByName(@NotNull String name) throws IOException, InterruptedException {
 		String lookupName = name.toLowerCase();
+
+		if (!USERNAME_PATTERN.matcher(lookupName).matches()) {
+			return Optional.empty();
+		}
 
 		Optional<MinecraftProfile> cached = CACHE_BY_NAME.getIfPresent(lookupName);
 		if (cached != null) {
@@ -38,7 +45,7 @@ public record MinecraftProfile(
 		log.info("refreshing minecraft profile for {}", lookupName);
 
 		HttpRequest request = HttpRequest.newBuilder()
-			.uri(URI.create("https://api.minecraftservices.com/minecraft/profile/lookup/name/" + Util.urlEncode(lookupName)))
+			.uri(URI.create("https://api.minetools.eu/uuid/" + lookupName))
 			.GET()
 			.build();
 
