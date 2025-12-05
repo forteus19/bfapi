@@ -60,6 +60,12 @@ public record MinecraftProfile(
 		}
 
 		JsonObject json = Util.COMPACT_GSON.fromJson(response.body(), JsonObject.class);
+
+		if (json.get("status").getAsString().equals("ERR")) {
+			CACHE_BY_NAME.put(lookupName, Optional.empty());
+			return Optional.empty();
+		}
+
 		Optional<MinecraftProfile> profile = Optional.of(new MinecraftProfile(
 			Util.parseUndashedUuid(json.get("id").getAsString()),
 			json.get("name").getAsString()
