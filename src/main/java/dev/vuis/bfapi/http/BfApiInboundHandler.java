@@ -263,7 +263,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		FullHttpResponse response = Responses.json(
 			ctx, msg, HttpResponseStatus.OK,
-			w -> data.value().serialize(w)
+			w -> data.value().serialize(w, ucd)
 		);
 		Responses.cacheHeaders(response, data.expires());
 		return response;
@@ -415,7 +415,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		return Responses.json(
 			ctx, msg, HttpResponseStatus.OK,
-			w -> ucd.serializeLeaderboard(w, ucd.getPlayerExpLeaderboard())
+			w -> ucd.serializePlayerLeaderboard(w, ucd.getPlayerExpLeaderboard())
 		);
 	}
 

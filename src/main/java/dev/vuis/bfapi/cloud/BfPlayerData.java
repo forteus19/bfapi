@@ -5,14 +5,17 @@ import com.boehmod.bflib.cloud.common.player.AbstractPlayerCloudData;
 import com.boehmod.bflib.cloud.common.player.PlayerGroup;
 import com.boehmod.bflib.cloud.common.player.PlayerRank;
 import com.google.gson.stream.JsonWriter;
+import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.util.Util;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+@Slf4j
 public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 	private @Nullable PlayerGroup group;
 
@@ -20,7 +23,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		super(uuid);
 	}
 
-	public @NotNull JsonWriter serialize(@NotNull JsonWriter w) throws IOException {
+	public @NotNull JsonWriter serialize(@NotNull JsonWriter w, @Nullable UnofficialCloudData ucd) throws IOException {
 		w.beginObject();
 
 		w.name("uuid").value(getUUID().toString());
@@ -59,6 +62,20 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		w.name("highest_death_streak").value(getDeathStreak());
 		w.name("infected_rounds_won").value(getInfectedRoundsWon());
 		w.name("infected_matches_won").value(getInfectedMatchesWon());
+		if (ucd != null) {
+			w.name("ucd").beginObject();
+			w.name("exp_rank");
+			int expRank = Util.indexOf(ucd.getPlayerExpLeaderboard(), p -> getUUID().equals(p.uuid()));
+			if (expRank >= 0) {
+				w.value(expRank + 1);
+			} else {
+				w.nullValue();
+				if (getPrestigeLevel() > 0 || getExp() > Util.PRESTIGE_EXP) {
+					log.warn("player {} ({}) has prestige exp but is not on EXP leaderboard", getUsername(), getUUID());
+				}
+			}
+			w.endObject();
+		}
 
 		w.endObject();
 

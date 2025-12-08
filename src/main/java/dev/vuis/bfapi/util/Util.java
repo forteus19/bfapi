@@ -12,16 +12,18 @@ import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class Util {
 	private static final Base64.Encoder BASE64_ENCODER_NO_PADDING = Base64.getEncoder().withoutPadding();
-	private static final int PRESTIGE_EXP = PlayerRank.getTotalRequiredEXPForRank(PlayerRank.GENERAL);
+	public static final int PRESTIGE_EXP = PlayerRank.getTotalRequiredEXPForRank(PlayerRank.GENERAL);
 
 	public static final Gson COMPACT_GSON = baseGsonBuilder()
 		.setFormattingStyle(FormattingStyle.COMPACT)
@@ -175,5 +177,14 @@ public final class Util {
 
 	public static int getTotalExp(int prestige, int exp) {
 		return prestige * PRESTIGE_EXP + exp;
+	}
+
+	public static <T> int indexOf(List<T> list, Predicate<T> filter) {
+		for (int i = 0; i < list.size(); i++) {
+			if (filter.test(list.get(i))) {
+				return i;
+			}
+		}
+		return -1;
 	}
 }

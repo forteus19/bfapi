@@ -79,7 +79,7 @@ public class UnofficialCloudData {
 		log.info("refresh finished");
 	}
 
-	public @NotNull JsonWriter serializeLeaderboard(@NotNull JsonWriter w, @NotNull List<Player> leaderboard) throws IOException {
+	public @NotNull JsonWriter serializePlayerLeaderboard(@NotNull JsonWriter w, @NotNull List<Player> leaderboard) throws IOException {
 		w.beginObject();
 
 		w.name("last_updated").value(Util.ifNonNull(lastRefreshed, Instant::toString));
