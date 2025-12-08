@@ -12,7 +12,6 @@ import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
 import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.cloud.BfPlayerInventory;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
-import dev.vuis.bfapi.util.JsonUtil;
 import dev.vuis.bfapi.util.Util;
 import java.io.IOException;
 import java.util.Optional;
@@ -140,8 +139,7 @@ public final class Serialization {
 
 		w.name("online").value(status.getOnlineStatus().isOnline());
 		w.name("party").value(status.getPartyStatus().toString().toLowerCase());
-		w.name("server");
-		JsonUtil.nullableValue(w, Util.ifNonNull(status.getServerOn(), UUID::toString));
+		w.name("server").value(Util.ifNonNull(status.getServerOn(), UUID::toString));
 		w.name("match");
 		MatchData matchData = status.getMatchData();
 		if (matchData != null) {

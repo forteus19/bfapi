@@ -8,6 +8,7 @@ import dev.vuis.bfapi.auth.XstsAuth;
 import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfCloudPacketHandlers;
 import dev.vuis.bfapi.cloud.BfConnection;
+import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.data.MinecraftProfile;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
 import dev.vuis.bfapi.http.BfApiInboundHandler;
@@ -20,7 +21,10 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Scanner;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -28,6 +32,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Nullable;
@@ -44,10 +49,11 @@ public final class ApiMain {
 	private static final String BF_VERSION = Util.getEnvOrThrow("BF_VERSION");
 	private static final String BF_VERSION_HASH = Util.getEnvOrThrow("BF_VERSION_HASH");
 	private static final byte[] BF_HARDWARE_ID = Util.parseHexArray(Util.getEnvOrThrow("BF_HARDWARE_ID"));
+	private static final String BF_PLAYER_LIST_FILE = Util.getEnvOrThrow("BF_PLAYER_LIST_FILE");
+	private static final String BF_REFRESH_SECRET = Util.getEnvOrThrow("BF_REFRESH_SECRET");
 
-	private static BfApiInboundHandler inboundHandler = null;
 	private static final ScheduledExecutorService refreshExecutor = Executors.newSingleThreadScheduledExecutor();
-	private static @Nullable ScheduledFuture<?> refreshFuture = null;
+	private static @Nullable ScheduledFuture<?> scoreboardRefreshFuture = null;
 
 	private ApiMain() {
 	}
@@ -55,6 +61,13 @@ public final class ApiMain {
 	@SneakyThrows
 	public static void main(String[] args) {
 		Scanner consoleScanner = new Scanner(System.in);
+
+		String msClientSecret = null;
+		if (MS_CLIENT_SECRET_FILE != null) {
+			msClientSecret = Files.readString(Path.of(MS_CLIENT_SECRET_FILE));
+		}
+		Set<UUID> ucdPlayers = Arrays.stream(Files.readString(Path.of(BF_PLAYER_LIST_FILE)).split("\n"))
+			.map(UUID::fromString).collect(Collectors.toSet());
 
 		log.info("starting HTTP server");
 
@@ -66,12 +79,10 @@ public final class ApiMain {
 			msState = MicrosoftAuth.randomState();
 			msCodeWrapper = new MsCodeWrapper(msCodeFuture, msState);
 		}
-		startHttpServer(msCodeWrapper);
 
-		String msClientSecret = null;
-		if (MS_CLIENT_SECRET_FILE != null) {
-			msClientSecret = Files.readString(Path.of(MS_CLIENT_SECRET_FILE));
-		}
+		BfApiInboundHandler inboundHandler = new BfApiInboundHandler(msCodeWrapper, BF_REFRESH_SECRET);
+		startHttpServer(inboundHandler);
+
 		MicrosoftAuth msAuth = new MicrosoftAuth(
 			MS_CLIENT_ID,
 			msClientSecret,
@@ -103,28 +114,32 @@ public final class ApiMain {
 		BfConnection connection = new BfConnection(BF_CLOUD_ADDRESS, mcAuth, mcProfile, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
 		connection.connect();
 
+		UnofficialCloudData ucd = new UnofficialCloudData(ucdPlayers, connection.dataCache);
+
 		inboundHandler.connection = connection;
+		inboundHandler.ucd = ucd;
 
 		connection.addStatusListener(status -> {
 			switch (status) {
 				case CONNECTED_VERIFIED -> {
-					refreshFuture = refreshExecutor.scheduleAtFixedRate(
+					ucd.startRefresh();
+
+					scoreboardRefreshFuture = refreshExecutor.scheduleAtFixedRate(
 						() -> refreshScoreboardMembers(connection),
 						10, 60, TimeUnit.SECONDS
 					);
 				}
 				case CLOSED -> {
-					if (refreshFuture != null) {
-						refreshFuture.cancel(false);
-						refreshFuture = null;
+					if (scoreboardRefreshFuture != null) {
+						scoreboardRefreshFuture.cancel(false);
+						scoreboardRefreshFuture = null;
 					}
 				}
 			}
 		});
 	}
 
-	private static void startHttpServer(MsCodeWrapper msCodeWrapper) {
-		inboundHandler = new BfApiInboundHandler(msCodeWrapper);
+	private static void startHttpServer(BfApiInboundHandler inboundHandler) {
 		ServerBootstrap bootstrap = new ServerBootstrap()
 			.group(new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory()))
 			.channel(NioServerSocketChannel.class)

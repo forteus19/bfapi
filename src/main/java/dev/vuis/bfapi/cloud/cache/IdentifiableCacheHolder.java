@@ -6,13 +6,14 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.util.cache.ExpiryHolder;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectList;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.jetbrains.annotations.Nullable;
@@ -42,17 +43,44 @@ public class IdentifiableCacheHolder<T> {
 			return CompletableFuture.completedFuture(cached);
 		}
 
-		CompletableFuture<ExpiryHolder<T>> pending = pendingCache.getIfPresent(uuid);
-		if (pending != null) {
-			return pending;
+		CompletableFuture<ExpiryHolder<T>> pendingFuture = pendingCache.getIfPresent(uuid);
+		if (pendingFuture != null) {
+			return pendingFuture;
 		}
 
-		CompletableFuture<ExpiryHolder<T>> future = new CompletableFuture<>();
-		pendingCache.put(uuid, future);
+		CompletableFuture<ExpiryHolder<T>> newFuture = new CompletableFuture<>();
+		pendingCache.put(uuid, newFuture);
 
-		request(uuid, true);
+		request(uuid, false);
 
-		return future;
+		return newFuture;
+	}
+
+	public Map<UUID, CompletableFuture<ExpiryHolder<T>>> get(Set<UUID> uuids) {
+		Map<UUID, CompletableFuture<ExpiryHolder<T>>> futures = new Object2ObjectOpenHashMap<>(uuids.size());
+
+		for (UUID uuid : uuids) {
+			ExpiryHolder<T> cached = cache.getIfPresent(uuid);
+			if (cached != null) {
+				futures.put(uuid, CompletableFuture.completedFuture(cached));
+				continue;
+			}
+
+			CompletableFuture<ExpiryHolder<T>> pendingFuture = pendingCache.getIfPresent(uuid);
+			if (pendingFuture != null) {
+				futures.put(uuid, pendingFuture);
+				continue;
+			}
+
+			CompletableFuture<ExpiryHolder<T>> newFuture = new CompletableFuture<>();
+			pendingCache.put(uuid, newFuture);
+
+			futures.put(uuid, newFuture);
+		}
+
+		request(uuids, false);
+
+		return futures;
 	}
 
 	public @Nullable ExpiryHolder<T> getIfPresent(UUID uuid) {
@@ -70,7 +98,7 @@ public class IdentifiableCacheHolder<T> {
 		));
 	}
 
-	public void request(Collection<UUID> uuids, boolean override) {
+	public void request(Set<UUID> uuids, boolean override) {
 		ObjectList<Map.Entry<UUID, EnumSet<RequestType>>> requestEntries = new ObjectArrayList<>();
 
 		for (UUID uuid : uuids) {
