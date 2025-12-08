@@ -7,15 +7,18 @@ import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.BfPlayerInventory;
+import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.data.MinecraftProfile;
 import dev.vuis.bfapi.data.Serialization;
 import dev.vuis.bfapi.util.Responses;
 import dev.vuis.bfapi.util.Util;
 import dev.vuis.bfapi.util.cache.ExpiryHolder;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
@@ -24,7 +27,9 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.QueryStringDecoder;
+import it.unimi.dsi.fastutil.Pair;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -32,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.Nullable;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -40,7 +46,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	public static final String AUTH_CALLBACK_PATH = "/server_auth_callback";
 
 	private final MsCodeWrapper msCodeWrapper;
+	private final String bfRefreshSecret;
 	public BfConnection connection = null;
+	public UnofficialCloudData ucd = null;
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) {
@@ -55,6 +63,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			case "/api/v1/player_data" -> playerData(ctx, msg, qs);
 			case "/api/v1/player_inventory" -> playerInventory(ctx, msg, qs);
 			case "/api/v1/player_status" -> playerStatus(ctx, msg, qs);
+			case "/api/v1/ucd/player_exp_leaderboard" -> ucdPlayerExpLeaderboard(ctx, msg, qs);
+			case "/private/bf_ucd_refresh" -> bfUcdRefresh(ctx, msg, qs);
 			default -> null;
 		};
 
@@ -79,31 +89,27 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	private FullHttpResponse serverAuthCallback(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		if (msg.method() != HttpMethod.GET) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.METHOD_NOT_ALLOWED,
+				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
 				"method_not_allowed"
 			);
 		}
 
 		if (msCodeWrapper.future().isDone()) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.FORBIDDEN,
+				ctx, msg, HttpResponseStatus.FORBIDDEN,
 				"already_authenticated"
 			);
 		}
 
 		if (!qs.parameters().containsKey("code")) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.BAD_REQUEST,
+				ctx, msg, HttpResponseStatus.BAD_REQUEST,
 				"missing_code"
 			);
 		}
 		if (!qs.parameters().containsKey("state")) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.BAD_REQUEST,
+				ctx, msg, HttpResponseStatus.BAD_REQUEST,
 				"missing_state"
 			);
 		}
@@ -111,8 +117,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		String state = qs.parameters().get("state").getFirst();
 		if (!state.equals(msCodeWrapper.state())) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.FORBIDDEN,
+				ctx, msg, HttpResponseStatus.FORBIDDEN,
 				"unexpected_state"
 			);
 		}
@@ -121,8 +126,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		msCodeWrapper.future().complete(code);
 
 		return Responses.string(
-			ctx, msg,
-			HttpResponseStatus.OK,
+			ctx, msg, HttpResponseStatus.OK,
 			"Authentication completed"
 		);
 	}
@@ -130,23 +134,20 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	private FullHttpResponse clanData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		if (msg.method() != HttpMethod.GET) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.METHOD_NOT_ALLOWED,
+				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
 				"method_not_allowed"
 			);
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.SERVICE_UNAVAILABLE,
+				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
 				"cloud_disconnected"
 			);
 		}
 
 		if (!qs.parameters().containsKey("uuid")) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.BAD_REQUEST,
+				ctx, msg, HttpResponseStatus.BAD_REQUEST,
 				"missing_uuid"
 			);
 		}
@@ -154,8 +155,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		Optional<UUID> uuid = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
 		if (uuid.isEmpty()) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.BAD_REQUEST,
+				ctx, msg, HttpResponseStatus.BAD_REQUEST,
 				"invalid_uuid"
 			);
 		}
@@ -167,21 +167,18 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving clan data", e);
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"internal_server_error"
 			);
 		} catch (TimeoutException e) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"packet_timeout"
 			);
 		}
 
 		FullHttpResponse response = Responses.json(
-			ctx, msg,
-			HttpResponseStatus.OK,
+			ctx, msg, HttpResponseStatus.OK,
 			w -> Serialization.clan(w, data.value(), connection.dataCache)
 		);
 		Responses.cacheHeaders(response, data.expires());
@@ -191,15 +188,13 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	private FullHttpResponse cloudData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		if (msg.method() != HttpMethod.GET) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.METHOD_NOT_ALLOWED,
+				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
 				"method_not_allowed"
 			);
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.SERVICE_UNAVAILABLE,
+				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
 				"cloud_disconnected"
 			);
 		}
@@ -211,21 +206,18 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving cloud data", e);
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"internal_server_error"
 			);
 		} catch (TimeoutException e) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"packet_timeout"
 			);
 		}
 
 		FullHttpResponse response = Responses.json(
-			ctx, msg,
-			HttpResponseStatus.OK,
+			ctx, msg, HttpResponseStatus.OK,
 			w -> data.value().serialize(w, connection.dataCache)
 		);
 		Responses.cacheHeaders(response, data.expires());
@@ -235,69 +227,22 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	private FullHttpResponse playerData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		if (msg.method() != HttpMethod.GET) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.METHOD_NOT_ALLOWED,
+				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
 				"method_not_allowed"
 			);
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.SERVICE_UNAVAILABLE,
+				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
 				"cloud_disconnected"
 			);
 		}
 
-		boolean hasUuid = qs.parameters().containsKey("uuid");
-		boolean hasName = qs.parameters().containsKey("name");
-		if (!(hasUuid || hasName)) {
-			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.BAD_REQUEST,
-				"missing_uuid_or_name"
-			);
+		Pair<UUID, FullHttpResponse> uuidResult = playerUuidFromParams(ctx, msg, qs);
+		if (uuidResult.right() != null) {
+			return uuidResult.right();
 		}
-		if (hasUuid && hasName) {
-			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.BAD_REQUEST,
-				"both_uuid_and_name"
-			);
-		}
-
-		UUID uuid;
-		if (hasUuid) {
-			Optional<UUID> uuidParseResult = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
-			if (uuidParseResult.isEmpty()) {
-				return Responses.error(
-					ctx, msg,
-					HttpResponseStatus.BAD_REQUEST,
-					"invalid_uuid"
-				);
-			}
-
-			uuid = uuidParseResult.orElseThrow();
-		} else {
-			Optional<MinecraftProfile> profile;
-			try {
-				profile = MinecraftProfile.retrieveByName(qs.parameters().get("name").getFirst());
-			} catch (IOException | InterruptedException e) {
-				return Responses.error(
-					ctx, msg,
-					HttpResponseStatus.INTERNAL_SERVER_ERROR,
-					"profile_unavailable"
-				);
-			}
-			if (profile.isEmpty()) {
-				return Responses.error(
-					ctx, msg,
-					HttpResponseStatus.NOT_FOUND,
-					"profile_not_found"
-				);
-			}
-
-			uuid = profile.orElseThrow().uuid();
-		}
+		UUID uuid = uuidResult.left();
 
 		ExpiryHolder<BfPlayerData> data;
 		try {
@@ -306,21 +251,18 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving player data", e);
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"internal_server_error"
 			);
 		} catch (TimeoutException e) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"packet_timeout"
 			);
 		}
 
 		FullHttpResponse response = Responses.json(
-			ctx, msg,
-			HttpResponseStatus.OK,
+			ctx, msg, HttpResponseStatus.OK,
 			w -> data.value().serialize(w)
 		);
 		Responses.cacheHeaders(response, data.expires());
@@ -330,33 +272,14 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	private FullHttpResponse playerInventory(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		if (msg.method() != HttpMethod.GET) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.METHOD_NOT_ALLOWED,
+				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
 				"method_not_allowed"
 			);
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.SERVICE_UNAVAILABLE,
+				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
 				"cloud_disconnected"
-			);
-		}
-
-		boolean hasUuid = qs.parameters().containsKey("uuid");
-		boolean hasName = qs.parameters().containsKey("name");
-		if (!(hasUuid || hasName)) {
-			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.BAD_REQUEST,
-				"missing_uuid_or_name"
-			);
-		}
-		if (hasUuid && hasName) {
-			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.BAD_REQUEST,
-				"both_uuid_and_name"
 			);
 		}
 
@@ -366,8 +289,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				includeUuid = Boolean.parseBoolean(qs.parameters().get("include_uuid").getFirst());
 			} catch (Exception e) {
 				return Responses.error(
-					ctx, msg,
-					HttpResponseStatus.BAD_REQUEST,
+					ctx, msg, HttpResponseStatus.BAD_REQUEST,
 					"invalid_include_uuid"
 				);
 			}
@@ -378,46 +300,17 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				includeDetails = Boolean.parseBoolean(qs.parameters().get("include_details").getFirst());
 			} catch (Exception e) {
 				return Responses.error(
-					ctx, msg,
-					HttpResponseStatus.BAD_REQUEST,
+					ctx, msg, HttpResponseStatus.BAD_REQUEST,
 					"invalid_include_details"
 				);
 			}
 		}
 
-		UUID uuid;
-		if (hasUuid) {
-			Optional<UUID> uuidParseResult = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
-			if (uuidParseResult.isEmpty()) {
-				return Responses.error(
-					ctx, msg,
-					HttpResponseStatus.BAD_REQUEST,
-					"invalid_uuid"
-				);
-			}
-
-			uuid = uuidParseResult.orElseThrow();
-		} else {
-			Optional<MinecraftProfile> profile;
-			try {
-				profile = MinecraftProfile.retrieveByName(qs.parameters().get("name").getFirst());
-			} catch (IOException | InterruptedException e) {
-				return Responses.error(
-					ctx, msg,
-					HttpResponseStatus.INTERNAL_SERVER_ERROR,
-					"profile_unavailable"
-				);
-			}
-			if (profile.isEmpty()) {
-				return Responses.error(
-					ctx, msg,
-					HttpResponseStatus.NOT_FOUND,
-					"profile_not_found"
-				);
-			}
-
-			uuid = profile.orElseThrow().uuid();
+		Pair<UUID, FullHttpResponse> uuidResult = playerUuidFromParams(ctx, msg, qs);
+		if (uuidResult.right() != null) {
+			return uuidResult.right();
 		}
+		UUID uuid = uuidResult.left();
 
 		ExpiryHolder<BfPlayerInventory> data;
 		try {
@@ -426,14 +319,12 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving player data", e);
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"internal_server_error"
 			);
 		} catch (TimeoutException e) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"packet_timeout"
 			);
 		}
@@ -441,8 +332,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		boolean finalIncludeUuid = includeUuid;
 		boolean finalIncludeDetails = includeDetails;
 		FullHttpResponse response = Responses.json(
-			ctx, msg,
-			HttpResponseStatus.OK,
+			ctx, msg, HttpResponseStatus.OK,
 			w -> Serialization.playerInventory(
 				w, data.value(), connection.registry, finalIncludeUuid, finalIncludeDetails,
 				Util.unchecked(w2 -> {
@@ -459,69 +349,22 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	private FullHttpResponse playerStatus(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		if (msg.method() != HttpMethod.GET) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.METHOD_NOT_ALLOWED,
+				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
 				"method_not_allowed"
 			);
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.SERVICE_UNAVAILABLE,
+				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
 				"cloud_disconnected"
 			);
 		}
 
-		boolean hasUuid = qs.parameters().containsKey("uuid");
-		boolean hasName = qs.parameters().containsKey("name");
-		if (!(hasUuid || hasName)) {
-			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.BAD_REQUEST,
-				"missing_uuid_or_name"
-			);
+		Pair<UUID, FullHttpResponse> uuidResult = playerUuidFromParams(ctx, msg, qs);
+		if (uuidResult.right() != null) {
+			return uuidResult.right();
 		}
-		if (hasUuid && hasName) {
-			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.BAD_REQUEST,
-				"both_uuid_and_name"
-			);
-		}
-
-		UUID uuid;
-		if (hasUuid) {
-			Optional<UUID> uuidParseResult = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
-			if (uuidParseResult.isEmpty()) {
-				return Responses.error(
-					ctx, msg,
-					HttpResponseStatus.BAD_REQUEST,
-					"invalid_uuid"
-				);
-			}
-
-			uuid = uuidParseResult.orElseThrow();
-		} else {
-			Optional<MinecraftProfile> profile;
-			try {
-				profile = MinecraftProfile.retrieveByName(qs.parameters().get("name").getFirst());
-			} catch (IOException | InterruptedException e) {
-				return Responses.error(
-					ctx, msg,
-					HttpResponseStatus.INTERNAL_SERVER_ERROR,
-					"profile_unavailable"
-				);
-			}
-			if (profile.isEmpty()) {
-				return Responses.error(
-					ctx, msg,
-					HttpResponseStatus.NOT_FOUND,
-					"profile_not_found"
-				);
-			}
-
-			uuid = profile.orElseThrow().uuid();
-		}
+		UUID uuid = uuidResult.left();
 
 		ExpiryHolder<PlayerStatus> data;
 		try {
@@ -530,14 +373,12 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving player data", e);
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"internal_server_error"
 			);
 		} catch (TimeoutException e) {
 			return Responses.error(
-				ctx, msg,
-				HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
 				"packet_timeout"
 			);
 		}
@@ -556,5 +397,123 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		);
 		Responses.cacheHeaders(response, data.expires());
 		return response;
+	}
+
+	private FullHttpResponse ucdPlayerExpLeaderboard(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		if (msg.method() != HttpMethod.GET) {
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
+				"method_not_allowed"
+			);
+		}
+		if (connection == null || !connection.isConnectedAndVerified()) {
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
+				"cloud_disconnected"
+			);
+		}
+
+		return Responses.json(
+			ctx, msg, HttpResponseStatus.OK,
+			w -> ucd.serializeLeaderboard(w, ucd.getPlayerExpLeaderboard())
+		);
+	}
+
+	private FullHttpResponse bfUcdRefresh(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		if (msg.method() != HttpMethod.POST) {
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
+				"method_not_allowed"
+			);
+		}
+		if (connection == null || !connection.isConnectedAndVerified()) {
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
+				"cloud_disconnected"
+			);
+		}
+
+		ByteBuf content = msg.content();
+		int contentLength = content.readableBytes();
+
+		if (contentLength != bfRefreshSecret.length()) {
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.FORBIDDEN,
+				"invalid_secret"
+			);
+		}
+
+		byte[] secretBytes = new byte[contentLength];
+		content.readBytes(secretBytes);
+		String secret = new String(secretBytes, StandardCharsets.US_ASCII);
+
+		if (!secret.equals(bfRefreshSecret)) {
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.FORBIDDEN,
+				"invalid_secret"
+			);
+		}
+
+		if (!ucd.startRefresh()) {
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.CONFLICT,
+				"refresh_in_progress"
+			);
+		}
+
+		return new DefaultFullHttpResponse(
+			msg.protocolVersion(),
+			HttpResponseStatus.NO_CONTENT
+		);
+	}
+
+	private static Pair<UUID, @Nullable FullHttpResponse> playerUuidFromParams(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		boolean hasUuid = qs.parameters().containsKey("uuid");
+		boolean hasName = qs.parameters().containsKey("name");
+		if (!(hasUuid || hasName)) {
+			return Pair.of(null, Responses.error(
+				ctx, msg, HttpResponseStatus.BAD_REQUEST,
+				"missing_uuid_or_name"
+			));
+		}
+		if (hasUuid && hasName) {
+			return Pair.of(null, Responses.error(
+				ctx, msg, HttpResponseStatus.BAD_REQUEST,
+				"both_uuid_and_name"
+			));
+		}
+
+		UUID uuid;
+		if (hasUuid) {
+			Optional<UUID> uuidParseResult = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
+			if (uuidParseResult.isEmpty()) {
+				return Pair.of(null, Responses.error(
+					ctx, msg, HttpResponseStatus.BAD_REQUEST,
+					"invalid_uuid"
+				));
+			}
+
+			uuid = uuidParseResult.orElseThrow();
+		} else {
+			Optional<MinecraftProfile> profile;
+			try {
+				profile = MinecraftProfile.retrieveByName(qs.parameters().get("name").getFirst());
+			} catch (IOException | InterruptedException e) {
+				return Pair.of(null, Responses.error(
+					ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
+					"profile_unavailable"
+				));
+			}
+			if (profile.isEmpty()) {
+				return Pair.of(null, Responses.error(
+					ctx, msg, HttpResponseStatus.NOT_FOUND,
+					"profile_not_found"
+				));
+			}
+
+			uuid = profile.orElseThrow().uuid();
+		}
+
+		return Pair.of(uuid, null);
 	}
 }

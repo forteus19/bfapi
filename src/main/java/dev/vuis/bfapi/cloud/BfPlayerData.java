@@ -5,7 +5,6 @@ import com.boehmod.bflib.cloud.common.player.AbstractPlayerCloudData;
 import com.boehmod.bflib.cloud.common.player.PlayerGroup;
 import com.boehmod.bflib.cloud.common.player.PlayerRank;
 import com.google.gson.stream.JsonWriter;
-import dev.vuis.bfapi.util.JsonUtil;
 import dev.vuis.bfapi.util.Util;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import java.io.IOException;
@@ -26,8 +25,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 
 		w.name("uuid").value(getUUID().toString());
 		w.name("username").value(getUsername());
-		w.name("mood");
-		JsonUtil.nullableValue(w, getMood().orElse(null));
+		w.name("mood").value(getMood().orElse(null));
 		w.name("class_exp").beginArray();
 		for (Int2IntMap.Entry entry : getClassExp().int2IntEntrySet()) {
 			w.beginObject();
@@ -44,8 +42,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		w.name("total_games").value(getTotalGames());
 		w.name("time_played").value(getTimePlayed());
 		w.name("bootcamp").value(hasCompletedBootcamp());
-		w.name("clan");
-		JsonUtil.nullableValue(w, Util.ifNonNull(getClanId(), UUID::toString));
+		w.name("clan").value(Util.ifNonNull(getClanId(), UUID::toString));
 		w.name("cases_opened").value(getCasesOpened());
 		w.name("kills").value(getKills());
 		w.name("assists").value(getAssists());

@@ -1,6 +1,7 @@
 package dev.vuis.bfapi.util;
 
 import com.boehmod.bflib.cloud.common.AbstractClanData;
+import com.boehmod.bflib.cloud.common.player.PlayerRank;
 import com.google.gson.FormattingStyle;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -8,7 +9,9 @@ import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.util.cache.ExpiryHolder;
 import java.net.URLEncoder;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -17,16 +20,22 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class Util {
-	public static final Gson COMPACT_GSON = new GsonBuilder()
+	private static final Base64.Encoder BASE64_ENCODER_NO_PADDING = Base64.getEncoder().withoutPadding();
+	private static final int PRESTIGE_EXP = PlayerRank.getTotalRequiredEXPForRank(PlayerRank.GENERAL);
+
+	public static final Gson COMPACT_GSON = baseGsonBuilder()
 		.setFormattingStyle(FormattingStyle.COMPACT)
-		.serializeNulls()
 		.create();
-	public static final Gson PRETTY_GSON = new GsonBuilder()
+	public static final Gson PRETTY_GSON = baseGsonBuilder()
 		.setFormattingStyle(FormattingStyle.PRETTY)
-		.serializeNulls()
 		.create();
 
 	private Util() {
+	}
+
+	private static GsonBuilder baseGsonBuilder() {
+		return new GsonBuilder()
+			.serializeNulls();
 	}
 
 	public static Gson gson(boolean pretty) {
@@ -98,6 +107,17 @@ public final class Util {
 		return uuid.toString().replace("-", "");
 	}
 
+	public static byte[] getUuidBytes(@NotNull UUID uuid) {
+		ByteBuffer buf = ByteBuffer.allocate(16);
+		buf.putLong(uuid.getMostSignificantBits());
+		buf.putLong(uuid.getLeastSignificantBits());
+		return buf.array();
+	}
+
+	public static String getBase64Uuid(@NotNull UUID uuid) {
+		return BASE64_ENCODER_NO_PADDING.encodeToString(getUuidBytes(uuid));
+	}
+
 	public static byte[] parseHexArray(@NotNull String str) {
 		if (str.length() % 2 != 0) {
 			throw new IllegalArgumentException("invalid hex string");
@@ -151,5 +171,9 @@ public final class Util {
 		}
 
 		return name;
+	}
+
+	public static int getTotalExp(int prestige, int exp) {
+		return prestige * PRESTIGE_EXP + exp;
 	}
 }

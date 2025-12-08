@@ -44,4 +44,4 @@ bin/
 /client_secret_DO_NOT_COMMIT.txt
 /registry.json
 /registry_hash.txt
-/leaderboard_players.json
+/leaderboard_players.txt
