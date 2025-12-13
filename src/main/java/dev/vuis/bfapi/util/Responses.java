@@ -66,6 +66,7 @@ public final class Responses {
 		try {
 			writerConsumer.accept(writer);
 		} catch (Exception e) {
+			buf.release();
 			log.error("failed to serialize json", e);
 			return Responses.error(
 				ctx, msg,

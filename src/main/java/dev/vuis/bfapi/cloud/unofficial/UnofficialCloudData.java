@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -15,6 +16,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,8 @@ public class UnofficialCloudData {
 
 	@Getter
 	private List<Player> playerExpLeaderboard = List.of();
+	@Getter
+	private Set<UUID> clanList = Set.of();
 
 	public boolean isRefreshing() {
 		return refreshing.get();
@@ -63,8 +67,16 @@ public class UnofficialCloudData {
 			return;
 		}
 
-		playerExpLeaderboard = listDataFutures.values().stream()
+		List<BfPlayerData> playerDatas = listDataFutures.values().stream()
 			.map(f -> f.join().value())
+			.toList();
+
+		clanList = playerDatas.stream()
+			.map(BfPlayerData::getClanId)
+			.filter(Objects::nonNull)
+			.collect(Collectors.toUnmodifiableSet());
+
+		playerExpLeaderboard = playerDatas.stream()
 			.sorted(Comparator.<BfPlayerData>comparingInt(d -> Util.getTotalExp(d.getPrestigeLevel(), d.getExp())).reversed())
 			.map(d -> new Player(
 				d.getUUID(),
@@ -82,7 +94,7 @@ public class UnofficialCloudData {
 	public @NotNull JsonWriter serializePlayerLeaderboard(@NotNull JsonWriter w, @NotNull List<Player> leaderboard) throws IOException {
 		w.beginObject();
 
-		w.name("last_updated").value(Util.ifNonNull(lastRefreshed, Instant::toString));
+		serializeLastUpdated(w);
 		w.name("leaderboard").beginArray();
 		for (Player player : leaderboard) {
 			player.serialize(w);
@@ -91,6 +103,26 @@ public class UnofficialCloudData {
 
 		w.endObject();
 
+		return w;
+	}
+
+	public @NotNull JsonWriter serializeClanList(@NotNull JsonWriter w) throws IOException {
+		w.beginObject();
+
+		serializeLastUpdated(w);
+		w.name("clans").beginArray();
+		for (UUID clan : clanList) {
+			w.value(Util.getBase64Uuid(clan));
+		}
+		w.endArray();
+
+		w.endObject();
+
+		return w;
+	}
+
+	private @NotNull JsonWriter serializeLastUpdated(@NotNull JsonWriter w) throws IOException {
+		w.name("last_updated").value(Util.ifNonNull(lastRefreshed, Instant::toString));
 		return w;
 	}
 

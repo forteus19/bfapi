@@ -63,6 +63,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			case "/api/v1/player_data" -> playerData(ctx, msg, qs);
 			case "/api/v1/player_inventory" -> playerInventory(ctx, msg, qs);
 			case "/api/v1/player_status" -> playerStatus(ctx, msg, qs);
+			case "/api/v1/ucd/clan_list" -> ucdClanList(ctx, msg, qs);
 			case "/api/v1/ucd/player_exp_leaderboard" -> ucdPlayerExpLeaderboard(ctx, msg, qs);
 			case "/private/bf_ucd_refresh" -> bfUcdRefresh(ctx, msg, qs);
 			default -> null;
@@ -399,17 +400,25 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		return response;
 	}
 
-	private FullHttpResponse ucdPlayerExpLeaderboard(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private FullHttpResponse ucdClanList(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		if (msg.method() != HttpMethod.GET) {
 			return Responses.error(
 				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
 				"method_not_allowed"
 			);
 		}
-		if (connection == null || !connection.isConnectedAndVerified()) {
+
+		return Responses.json(
+			ctx, msg, HttpResponseStatus.OK,
+			ucd::serializeClanList
+		);
+	}
+
+	private FullHttpResponse ucdPlayerExpLeaderboard(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		if (msg.method() != HttpMethod.GET) {
 			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"cloud_disconnected"
+				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
+				"method_not_allowed"
 			);
 		}
 
