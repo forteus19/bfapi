@@ -11,13 +11,17 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.Nullable;
 
 @Slf4j
 public final class Responses {
@@ -79,6 +83,18 @@ public final class Responses {
 		response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json; charset=utf-8");
 
 		return response;
+	}
+
+	public static @Nullable FullHttpResponse checkMethod(ChannelHandlerContext ctx, FullHttpRequest msg, HttpMethod... allowed) {
+		if (Arrays.stream(allowed).noneMatch(method -> method.equals(msg.method()))) {
+			FullHttpResponse response = error(
+				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
+				"method_not_allowed"
+			);
+			response.headers().add(HttpHeaderNames.ALLOW, Arrays.stream(allowed).map(HttpMethod::name).collect(Collectors.joining(", ")));
+			return response;
+		}
+		return null;
 	}
 
 	public static void cacheHeaders(FullHttpResponse response, Instant expires) {

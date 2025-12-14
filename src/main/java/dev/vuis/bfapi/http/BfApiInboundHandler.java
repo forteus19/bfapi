@@ -88,11 +88,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse serverAuthCallback(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
-		if (msg.method() != HttpMethod.GET) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
-				"method_not_allowed"
-			);
+		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
+		if (methodResponse != null) {
+			return methodResponse;
 		}
 
 		if (msCodeWrapper.future().isDone()) {
@@ -133,11 +131,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse clanData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
-		if (msg.method() != HttpMethod.GET) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
-				"method_not_allowed"
-			);
+		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
+		if (methodResponse != null) {
+			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
 			return Responses.error(
@@ -187,11 +183,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse cloudData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
-		if (msg.method() != HttpMethod.GET) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.METHOD_NOT_ALLOWED,
-				"method_not_allowed"
-			);
+		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
+		if (methodResponse != null) {
+			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
 			return Responses.error(
