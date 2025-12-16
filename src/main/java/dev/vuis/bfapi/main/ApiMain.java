@@ -22,7 +22,6 @@ import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Scanner;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -59,9 +58,7 @@ public final class ApiMain {
 	}
 
 	@SneakyThrows
-	public static void main(String[] args) {
-		Scanner consoleScanner = new Scanner(System.in);
-
+	public static void main() {
 		String msClientSecret = null;
 		if (MS_CLIENT_SECRET_FILE != null) {
 			msClientSecret = Files.readString(Path.of(MS_CLIENT_SECRET_FILE));
@@ -94,7 +91,7 @@ public final class ApiMain {
 		String msAuthorizationCode;
 		if (MS_PASTE_REDIRECT) {
 			log.info("paste redirected location:");
-			String redirectInput = consoleScanner.nextLine();
+			String redirectInput = IO.readln();
 			msAuthorizationCode = parseRedirectResult(redirectInput);
 		} else {
 			msAuthorizationCode = msCodeFuture.get();
@@ -108,7 +105,7 @@ public final class ApiMain {
 
 		log.info("authenticated as {} ({})", mcProfile.username(), mcProfile.uuid());
 		log.info("press enter to continue");
-		consoleScanner.nextLine();
+		IO.readln();
 
 		BfCloudPacketHandlers.register();
 		BfConnection connection = new BfConnection(BF_CLOUD_ADDRESS, mcAuth, mcProfile, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
