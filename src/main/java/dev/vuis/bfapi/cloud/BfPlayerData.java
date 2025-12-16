@@ -2,13 +2,18 @@ package dev.vuis.bfapi.cloud;
 
 import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.boehmod.bflib.cloud.common.player.AbstractPlayerCloudData;
+import com.boehmod.bflib.cloud.common.player.PlayerDataContext;
 import com.boehmod.bflib.cloud.common.player.PlayerGroup;
 import com.boehmod.bflib.cloud.common.player.PlayerRank;
+import com.boehmod.bflib.cloud.common.player.PunishmentType;
 import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.util.Util;
+import io.netty.buffer.ByteBuf;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import java.io.IOException;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +23,11 @@ import org.jetbrains.annotations.Nullable;
 @Slf4j
 public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 	private @Nullable PlayerGroup group;
+	private int maxFriends = 0;
+	private final Map<PunishmentType, Integer> pastPunishments = new EnumMap<>(PunishmentType.class);
+	private final Map<PunishmentType, Integer> activePunishments = new EnumMap<>(PunishmentType.class);
+	private boolean linkedDiscord = false;
+	private boolean linkedPatreon = false;
 
 	public BfPlayerData(@NotNull UUID uuid) {
 		super(uuid);
@@ -62,6 +72,18 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		w.name("highest_death_streak").value(getDeathStreak());
 		w.name("infected_rounds_won").value(getInfectedRoundsWon());
 		w.name("infected_matches_won").value(getInfectedMatchesWon());
+		w.name("group").value(Util.ifNonNull(group, PlayerGroup::getTag));
+		w.name("max_friends").value(maxFriends);
+		w.name("punishments").beginObject();
+		w.name("past").beginObject();
+		serializePunishmentMap(w, pastPunishments);
+		w.endObject();
+		w.name("active").beginObject();
+		serializePunishmentMap(w, activePunishments);
+		w.endObject();
+		w.endObject();
+		w.name("linked_discord").value(linkedDiscord);
+		w.name("linked_patreon").value(linkedPatreon);
 		if (ucd != null) {
 			w.name("ucd").beginObject();
 			w.name("exp_rank");
@@ -80,6 +102,38 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		w.endObject();
 
 		return w;
+	}
+
+	private void serializePunishmentMap(@NotNull JsonWriter w, Map<PunishmentType, Integer> map) throws IOException {
+		int warnings = map.getOrDefault(PunishmentType.WARNING, 0);
+		if (warnings > 0) {
+			w.name("warning").value(warnings);
+		}
+		int mutes = map.getOrDefault(PunishmentType.MUTE, 0);
+		if (mutes > 0) {
+			w.name("mute").value(mutes);
+		}
+		int bans = map.getOrDefault(PunishmentType.BAN_MM, 0);
+		if (bans > 0) {
+			w.name("ban").value(bans);
+		}
+	}
+
+	@Override
+	public void read(@NotNull PlayerDataContext context, @NotNull ByteBuf buf) throws IOException {
+		super.read(context, buf);
+		maxFriends = buf.readInt();
+
+		pastPunishments.clear();
+		activePunishments.clear();
+		for (PunishmentType type : PunishmentType.values()) {
+			pastPunishments.put(type, buf.readInt());
+			activePunishments.put(type, buf.readInt());
+		}
+
+		linkedDiscord = buf.readBoolean();
+		linkedPatreon = buf.readBoolean();
+		buf.readBoolean(); // mystery value
 	}
 
 	@Override
