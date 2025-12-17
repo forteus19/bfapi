@@ -113,7 +113,9 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		if (mutes > 0) {
 			w.name("mute").value(mutes);
 		}
-		int bans = map.getOrDefault(PunishmentType.BAN_MM, 0);
+		int bans = map.getOrDefault(PunishmentType.BAN_COMP, 0) +
+			map.getOrDefault(PunishmentType.BAN_MM, 0) +
+			map.getOrDefault(PunishmentType.BAN_CLOUD, 0);
 		if (bans > 0) {
 			w.name("ban").value(bans);
 		}
