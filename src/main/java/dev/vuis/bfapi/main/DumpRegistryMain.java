@@ -28,7 +28,7 @@ public final class DumpRegistryMain {
 	}
 
 	@SneakyThrows
-	public static void main(String[] args) {
+	static void main() {
 		log.info("dumping cloud registry");
 
 		CloudRegistry registry = new CloudRegistry();

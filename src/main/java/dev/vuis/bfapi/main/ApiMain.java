@@ -58,7 +58,7 @@ public final class ApiMain {
 	}
 
 	@SneakyThrows
-	public static void main() {
+	static void main() {
 		String msClientSecret = null;
 		if (MS_CLIENT_SECRET_FILE != null) {
 			msClientSecret = Files.readString(Path.of(MS_CLIENT_SECRET_FILE));
