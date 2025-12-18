@@ -178,7 +178,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			ctx, msg, HttpResponseStatus.OK,
 			w -> Serialization.clan(w, data.value(), connection.dataCache)
 		);
-		Responses.cacheHeaders(response, data.expires());
+		if (data.expires() != null) {
+			Responses.cacheHeaders(response, data.expires());
+		}
 		return response;
 	}
 
@@ -215,7 +217,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			ctx, msg, HttpResponseStatus.OK,
 			w -> data.value().serialize(w, connection.dataCache)
 		);
-		Responses.cacheHeaders(response, data.expires());
+		if (data.expires() != null) {
+			Responses.cacheHeaders(response, data.expires());
+		}
 		return response;
 	}
 
@@ -258,9 +262,11 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		FullHttpResponse response = Responses.json(
 			ctx, msg, HttpResponseStatus.OK,
-			w -> data.value().serialize(w, ucd)
+			w -> data.value().serialize(w, connection.dataCache, ucd)
 		);
-		Responses.cacheHeaders(response, data.expires());
+		if (data.expires() != null) {
+			Responses.cacheHeaders(response, data.expires());
+		}
 		return response;
 	}
 
@@ -337,7 +343,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				})
 			)
 		);
-		Responses.cacheHeaders(response, data.expires());
+		if (data.expires() != null) {
+			Responses.cacheHeaders(response, data.expires());
+		}
 		return response;
 	}
 
@@ -390,7 +398,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				})
 			)
 		);
-		Responses.cacheHeaders(response, data.expires());
+		if (data.expires() != null) {
+			Responses.cacheHeaders(response, data.expires());
+		}
 		return response;
 	}
 

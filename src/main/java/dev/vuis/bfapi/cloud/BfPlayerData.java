@@ -7,6 +7,7 @@ import com.boehmod.bflib.cloud.common.player.PlayerGroup;
 import com.boehmod.bflib.cloud.common.player.PlayerRank;
 import com.boehmod.bflib.cloud.common.player.PunishmentType;
 import com.google.gson.stream.JsonWriter;
+import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.util.Util;
 import io.netty.buffer.ByteBuf;
@@ -16,6 +17,9 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -33,7 +37,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		super(uuid);
 	}
 
-	public @NotNull JsonWriter serialize(@NotNull JsonWriter w, @Nullable UnofficialCloudData ucd) throws IOException {
+	public @NotNull JsonWriter serialize(@NotNull JsonWriter w, @Nullable BfDataCache dataCache, @Nullable UnofficialCloudData ucd) throws IOException {
 		w.beginObject();
 
 		w.name("uuid").value(getUUID().toString());
@@ -84,6 +88,26 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		w.endObject();
 		w.name("linked_discord").value(linkedDiscord);
 		w.name("linked_patreon").value(linkedPatreon);
+		if (dataCache != null) {
+			BfCloudData cloudData = null;
+			try {
+				cloudData = dataCache.cloudData.get().get(10, TimeUnit.SECONDS).value();
+			} catch (ExecutionException | InterruptedException | TimeoutException e) {
+				log.error("cloud data fetch for player serialization failed", e);
+			}
+			if (cloudData != null) {
+				w.name("sb");
+				int sbIndex = Util.indexOf(cloudData.playerScores(), p -> p.left().equals(getUUID()));
+				if (sbIndex == -1) {
+					w.nullValue();
+				} else {
+					w.beginObject();
+					w.name("rank").value(sbIndex + 1);
+					w.name("score").value(cloudData.playerScores().get(sbIndex).rightInt());
+					w.endObject();
+				}
+			}
+		}
 		if (ucd != null) {
 			w.name("ucd").beginObject();
 			w.name("exp_rank");

@@ -18,6 +18,7 @@ import com.boehmod.bflib.cloud.packet.common.server.PacketServerNotification;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import it.unimi.dsi.fastutil.Pair;
+import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -66,8 +67,14 @@ public final class BfCloudPacketHandlers {
 			packet.getUsersOnline(),
 			packet.getGamePlayerCount(),
 			Instant.ofEpochMilli(packet.getScoreboardResetTime()),
-			packet.getPlayerScores(),
-			packet.getClanScores()
+			packet.getPlayerScores().object2IntEntrySet().stream()
+				.sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+				.map(e -> new ObjectIntImmutablePair<>(e.getKey(), e.getIntValue()))
+				.toList(),
+			packet.getClanScores().object2IntEntrySet().stream()
+				.sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+				.map(e -> new ObjectIntImmutablePair<>(e.getKey(), e.getIntValue()))
+				.toList()
 		));
 	}
 

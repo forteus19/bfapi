@@ -18,6 +18,7 @@ import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.QueryStringDecoder;
+import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -52,7 +53,7 @@ public final class ApiMain {
 	private static final String BF_REFRESH_SECRET = Util.getEnvOrThrow("BF_REFRESH_SECRET");
 
 	private static final ScheduledExecutorService refreshExecutor = Executors.newSingleThreadScheduledExecutor();
-	private static @Nullable ScheduledFuture<?> scoreboardRefreshFuture = null;
+	private static @Nullable ScheduledFuture<?> cloudDataRefreshFuture = null;
 
 	private ApiMain() {
 	}
@@ -121,15 +122,15 @@ public final class ApiMain {
 				case CONNECTED_VERIFIED -> {
 					ucd.startRefresh();
 
-					scoreboardRefreshFuture = refreshExecutor.scheduleAtFixedRate(
-						() -> refreshScoreboardMembers(connection),
-						10, 60, TimeUnit.SECONDS
+					cloudDataRefreshFuture = refreshExecutor.scheduleAtFixedRate(
+						() -> refreshCloudData(connection),
+						0, 60, TimeUnit.SECONDS
 					);
 				}
 				case CLOSED -> {
-					if (scoreboardRefreshFuture != null) {
-						scoreboardRefreshFuture.cancel(false);
-						scoreboardRefreshFuture = null;
+					if (cloudDataRefreshFuture != null) {
+						cloudDataRefreshFuture.cancel(false);
+						cloudDataRefreshFuture = null;
 					}
 				}
 			}
@@ -153,7 +154,7 @@ public final class ApiMain {
 		return qs.parameters().get("code").getFirst();
 	}
 
-	private static void refreshScoreboardMembers(BfConnection connection) {
+	private static void refreshCloudData(BfConnection connection) {
 		if (!connection.isConnectedAndVerified()) {
 			return;
 		}
@@ -167,7 +168,7 @@ public final class ApiMain {
 			throw new RuntimeException(e);
 		}
 
-		connection.dataCache.playerData.request(cloudData.playerScores().keySet(), true);
-		connection.dataCache.clanData.request(cloudData.clanScores().keySet(), true);
+		connection.dataCache.playerData.request(cloudData.playerScores().stream().map(ObjectIntImmutablePair::left).collect(Collectors.toUnmodifiableSet()), true);
+		connection.dataCache.clanData.request(cloudData.clanScores().stream().map(ObjectIntImmutablePair::left).collect(Collectors.toUnmodifiableSet()), true);
 	}
 }
