@@ -1,6 +1,7 @@
 package dev.vuis.bfapi.cloud.unofficial;
 
 import com.google.gson.stream.JsonWriter;
+import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.util.Util;
@@ -71,6 +72,20 @@ public class UnofficialCloudData {
 			.map(f -> f.join().value())
 			.toList();
 
+		log.info("requesting cloud data");
+		BfCloudData cloudData;
+		try {
+			cloudData = dataCache.cloudData.get().get(10, TimeUnit.SECONDS).value();
+		} catch (InterruptedException | ExecutionException e) {
+			log.error("ucd cloud data request failed", e);
+			refreshing.set(false);
+			return;
+		} catch (TimeoutException e) {
+			log.error("ucd cloud data request timed out");
+			refreshing.set(false);
+			return;
+		}
+
 		clanList = playerDatas.stream()
 			.map(BfPlayerData::getClanId)
 			.filter(Objects::nonNull)
@@ -82,7 +97,8 @@ public class UnofficialCloudData {
 				d.getUUID(),
 				d.getUsername(),
 				Util.getTotalExp(d.getPrestigeLevel(), d.getExp()),
-				d.getPrestigeLevel()
+				d.getPrestigeLevel(),
+				Util.indexOf(cloudData.playerScores(), p -> p.left().equals(d.getUUID())) != -1
 			))
 			.toList();
 
@@ -130,7 +146,8 @@ public class UnofficialCloudData {
 		UUID uuid,
 		String username,
 		int exp,
-		int prestige
+		int prestige,
+		boolean isActive
 	) {
 		public @NotNull JsonWriter serialize(@NotNull JsonWriter w) throws IOException {
 			w.beginArray();
@@ -139,6 +156,7 @@ public class UnofficialCloudData {
 			w.value(username);
 			w.value(exp);
 			w.value(prestige);
+			w.value(isActive ? 1 : 0);
 
 			w.endArray();
 
