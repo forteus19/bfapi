@@ -41,9 +41,5 @@ bin/
 ### Mac OS ###
 .DS_Store
 
-/client_secret_DO_NOT_COMMIT.txt
 /registry.json
-/registry_hash.txt
-/leaderboard_players.txt
-/scraped_friends.txt
-/ucd_filtered_players.txt
+/*.txt

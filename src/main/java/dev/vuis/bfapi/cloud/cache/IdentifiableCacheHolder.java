@@ -28,7 +28,7 @@ public class IdentifiableCacheHolder<T> {
 	protected final Cache<UUID, ExpiryHolder<T>> cache;
 
 	protected final Cache<UUID, CompletableFuture<ExpiryHolder<T>>> pendingCache = CacheBuilder.newBuilder()
-		.expireAfterAccess(Duration.ofSeconds(15))
+		.expireAfterAccess(Duration.ofSeconds(30))
 		.build();
 
 	IdentifiableCacheHolder(BfConnection connection, RequestType requestType, Duration lifetime) {

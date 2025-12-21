@@ -49,6 +49,7 @@ import org.jetbrains.annotations.Nullable;
 @RequiredArgsConstructor
 @ChannelHandler.Sharable
 public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+	private static final int MAX_BULK_SIZE = 128;
 	public static final String AUTH_CALLBACK_PATH = "/server_auth_callback";
 
 	private final MsCodeWrapper msCodeWrapper;
@@ -65,6 +66,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		FullHttpResponse response = switch (path) {
 			case AUTH_CALLBACK_PATH -> msCodeWrapper != null ? serverAuthCallback(ctx, msg, qs) : null;
 			case "/api/v1/clan_data" -> clanData(ctx, msg, qs);
+			case "/api/v1/clan_data/bulk" -> clanDataBulk(ctx, msg, qs);
 			case "/api/v1/cloud_data" -> cloudData(ctx, msg, qs);
 			case "/api/v1/player_data" -> playerData(ctx, msg, qs);
 			case "/api/v1/player_data/bulk" -> playerDataBulk(ctx, msg, qs);
@@ -190,6 +192,53 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			Responses.cacheHeaders(response, data.expires());
 		}
 		return response;
+	}
+
+	private FullHttpResponse clanDataBulk(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs){
+		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.POST);
+		if (methodResponse != null) {
+			return methodResponse;
+		}
+		if (connection == null || !connection.isConnectedAndVerified()) {
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
+				"cloud_disconnected"
+			);
+		}
+
+		Pair<Set<UUID>, FullHttpResponse> uuidsResult = parseUuidSet(ctx, msg);
+		if (uuidsResult.right() != null) {
+			return uuidsResult.right();
+		}
+
+		var dataFutures = connection.dataCache.clanData.get(uuidsResult.left());
+		try {
+			CompletableFuture.allOf(dataFutures.values().toArray(new CompletableFuture[0])).get(20, TimeUnit.SECONDS);
+		} catch (InterruptedException | ExecutionException e) {
+			log.error("error while retrieving bulk clan data", e);
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				"internal_server_error"
+			);
+		} catch (TimeoutException e) {
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				"packet_timeout"
+			);
+		}
+		List<AbstractClanData> clanDatas = dataFutures.values().stream()
+			.map(f -> f.join().value()).toList();
+
+		return Responses.json(
+			ctx, msg, HttpResponseStatus.OK,
+			w -> {
+				w.beginArray();
+				for (AbstractClanData clanData : clanDatas) {
+					Serialization.clan(w, clanData, connection.dataCache);
+				}
+				w.endArray();
+			}
+		);
 	}
 
 	private FullHttpResponse cloudData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
@@ -651,6 +700,12 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return Pair.of(null, Responses.error(
 				ctx, msg, HttpResponseStatus.BAD_REQUEST,
 				"invalid_uuid_set"
+			));
+		}
+		if (parsedUuids.size() > MAX_BULK_SIZE) {
+			return Pair.of(null, Responses.error(
+				ctx, msg, HttpResponseStatus.BAD_REQUEST,
+				"uuid_set_size_too_large"
 			));
 		}
 
