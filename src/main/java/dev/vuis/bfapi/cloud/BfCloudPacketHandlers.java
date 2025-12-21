@@ -42,7 +42,7 @@ public final class BfCloudPacketHandlers {
 		registerPacketHandler(PacketServerNotification.class, BfCloudPacketHandlers::serverNotification);
 	}
 
-	private static <P extends IPacket> void registerPacketHandler(Class<P> packetClass, IPacketHandlerFunction<P, BfConnection> packetHandler) {
+	public static <P extends IPacket> void registerPacketHandler(Class<P> packetClass, IPacketHandlerFunction<P, BfConnection> packetHandler) {
 		PacketRegistry.registerPacketHandler(packetClass, packetHandler, BfConnection.class);
 	}
 

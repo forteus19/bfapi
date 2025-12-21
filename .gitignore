@@ -45,3 +45,4 @@ bin/
 /registry.json
 /registry_hash.txt
 /leaderboard_players.txt
+/scraped_friends.txt
