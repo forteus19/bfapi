@@ -60,7 +60,8 @@ public final class ApiMain {
 	private static final String BF_VERSION_HASH = Util.getEnvOrThrow("BF_VERSION_HASH");
 	private static final byte[] BF_HARDWARE_ID = Util.parseHexArray(Util.getEnvOrThrow("BF_HARDWARE_ID"));
 	private static final String BF_PLAYER_LIST_FILE = Util.getEnvOrThrow("BF_PLAYER_LIST_FILE");
-	private static final String BF_REFRESH_SECRET = Util.getEnvOrThrow("BF_REFRESH_SECRET");
+	private static final String BF_UCD_REFRESH_SECRET = Util.getEnvOrThrow("BF_UCD_REFRESH_SECRET");
+	private static final boolean BF_UCD_WRITE_FILTERED_PLAYERS = Boolean.parseBoolean(Util.getEnvOrElse("BF_UCD_WRITE_FILTERED_PLAYERS", "false"));
 	private static final boolean BF_SCRAPE_FRIENDS = Boolean.parseBoolean(Util.getEnvOrElse("BF_SCRAPE_FRIENDS", "false"));
 	private static final int BF_SCRAPE_FRIENDS_DEPTH = Integer.parseInt(Util.getEnvOrElse("BF_SCRAPE_FRIENDS_DEPTH", "2"));
 
@@ -91,7 +92,7 @@ public final class ApiMain {
 			msCodeWrapper = new MsCodeWrapper(msCodeFuture, msState);
 		}
 
-		BfApiInboundHandler inboundHandler = new BfApiInboundHandler(msCodeWrapper, BF_REFRESH_SECRET);
+		BfApiInboundHandler inboundHandler = new BfApiInboundHandler(msCodeWrapper, BF_UCD_REFRESH_SECRET);
 		startHttpServer(inboundHandler);
 
 		MicrosoftAuth msAuth = new MicrosoftAuth(
@@ -129,7 +130,7 @@ public final class ApiMain {
 		BfConnection connection = new BfConnection(BF_CLOUD_ADDRESS, mcAuth, mcProfile, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
 		connection.connect();
 
-		UnofficialCloudData ucd = new UnofficialCloudData(ucdPlayers, connection.dataCache);
+		UnofficialCloudData ucd = new UnofficialCloudData(ucdPlayers, connection.dataCache, BF_UCD_WRITE_FILTERED_PLAYERS);
 
 		inboundHandler.connection = connection;
 		inboundHandler.ucd = ucd;

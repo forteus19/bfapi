@@ -116,7 +116,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 				w.value(expRank + 1);
 			} else {
 				w.nullValue();
-				if (getPrestigeLevel() > 0 || getExp() > Util.PRESTIGE_EXP) {
+				if (Util.hasPrestigeExp(this)) {
 					log.warn("player {} ({}) has prestige exp but is not on EXP leaderboard", getUsername(), getUUID());
 				}
 			}

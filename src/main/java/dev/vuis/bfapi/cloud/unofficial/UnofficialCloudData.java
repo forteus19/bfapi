@@ -1,12 +1,18 @@
 package dev.vuis.bfapi.cloud.unofficial;
 
+import com.google.common.collect.Iterables;
 import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.util.Util;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -26,8 +32,12 @@ import org.jetbrains.annotations.NotNull;
 @Slf4j
 @RequiredArgsConstructor
 public class UnofficialCloudData {
+	private static final int REQUEST_CHUNK_SIZE = 128;
+	private static final Duration REQUEST_PADDING_TIME = Duration.ofSeconds(3);
+
 	private final Set<UUID> playerList;
 	private final BfDataCache dataCache;
+	private final boolean writeFilteredPlayers;
 
 	private final AtomicBoolean refreshing = new AtomicBoolean(false);
 	@Getter
@@ -54,23 +64,61 @@ public class UnofficialCloudData {
 	}
 
 	private void refresh() {
-		log.info("requesting data for {} players", playerList.size());
-		var listDataFutures = dataCache.playerData.get(playerList);
-		try {
-			CompletableFuture.allOf(listDataFutures.values().toArray(new CompletableFuture[0])).get(5, TimeUnit.MINUTES);
-		} catch (InterruptedException | ExecutionException e) {
-			log.error("ucd player list request failed", e);
-			refreshing.set(false);
-			return;
-		} catch (TimeoutException e) {
-			log.error("ucd player list request timed out");
-			refreshing.set(false);
-			return;
+		int numChunks = Math.ceilDiv(playerList.size(), REQUEST_CHUNK_SIZE);
+		log.info("requesting data for {} players ({} chunks)", playerList.size(), numChunks);
+
+		List<BfPlayerData> playerDatas = new ArrayList<>();
+
+		Iterable<List<UUID>> uuidChunks = Iterables.partition(playerList, REQUEST_CHUNK_SIZE);
+		int currentChunk = 0;
+
+		for (List<UUID> uuidChunk : uuidChunks) {
+			currentChunk++;
+			log.info("getting chunk {}/{}", currentChunk, numChunks);
+
+			var listDataFutures = dataCache.playerData.get(uuidChunk);
+			try {
+				CompletableFuture.allOf(listDataFutures.values().toArray(new CompletableFuture[0])).get(5, TimeUnit.MINUTES);
+			} catch (InterruptedException | ExecutionException e) {
+				log.error("ucd player list request failed", e);
+				refreshing.set(false);
+				return;
+			} catch (TimeoutException e) {
+				log.error("ucd player list request timed out");
+				refreshing.set(false);
+				return;
+			}
+
+			playerDatas.addAll(listDataFutures.values().stream()
+				.map(f -> f.join().value())
+				.filter(Util::hasPrestigeExp)
+				.toList());
+
+			int numFiltered = uuidChunk.size() - playerDatas.size();
+			if (numFiltered > 0) {
+				log.warn("{} players were filtered out", numFiltered);
+			}
+
+			if (currentChunk != numChunks) {
+				try {
+					Thread.sleep(REQUEST_PADDING_TIME);
+				} catch (InterruptedException e) {
+					throw new RuntimeException(e);
+				}
+			}
 		}
 
-		List<BfPlayerData> playerDatas = listDataFutures.values().stream()
-			.map(f -> f.join().value())
-			.toList();
+		if (writeFilteredPlayers) {
+			log.info("writing filtered players");
+
+			try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(Path.of("ucd_filtered_players.txt")))) {
+				for (BfPlayerData playerData : playerDatas) {
+					writer.println(playerData.getUUID());
+				}
+			} catch (IOException e) {
+				log.error("failed to write filtered players", e);
+			}
+		}
 
 		log.info("requesting cloud data");
 		BfCloudData cloudData;

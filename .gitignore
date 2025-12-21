@@ -46,3 +46,4 @@ bin/
 /registry_hash.txt
 /leaderboard_players.txt
 /scraped_friends.txt
+/ucd_filtered_players.txt
