@@ -59,7 +59,7 @@ public final class Util {
 		return obj;
 	}
 
-	public static <T, R> R ifNonNull(@Nullable T obj, Function<T, R> applier) {
+	public static <T, R> R ifNonNull(@Nullable T obj, Function<@NotNull T, R> applier) {
 		if (obj != null) {
 			return applier.apply(obj);
 		} else {

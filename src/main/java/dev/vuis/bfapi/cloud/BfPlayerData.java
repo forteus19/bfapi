@@ -76,7 +76,16 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		w.name("highest_death_streak").value(getDeathStreak());
 		w.name("infected_rounds_won").value(getInfectedRoundsWon());
 		w.name("infected_matches_won").value(getInfectedMatchesWon());
-		w.name("group").value(Util.ifNonNull(group, PlayerGroup::getTag));
+		w.name("achievements").value(getAchievements().size());
+		w.name("group");
+		if (group == null) {
+			w.nullValue();
+		} else {
+			w.beginObject();
+			w.name("tag").value(group.getTag());
+			w.name("color").value(group.getColor());
+			w.endObject();
+		}
 		w.name("max_friends").value(maxFriends);
 		w.name("punishments").beginObject();
 		w.name("past").beginObject();
