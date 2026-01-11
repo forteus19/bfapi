@@ -72,7 +72,7 @@ public final class Serialization {
 		w.beginObject();
 
 		if (includeUuid) {
-			w.name("uuid").value(stack.getUUID().toString());
+			w.name("uuid").value(Util.getBase64Uuid(stack.getUUID()));
 		}
 		w.name("id").value(stack.getItemId());
 		if (includeDetails) {
