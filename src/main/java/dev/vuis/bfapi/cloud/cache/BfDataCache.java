@@ -8,10 +8,13 @@ import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.BfPlayerInventory;
 import java.time.Duration;
+import java.util.Set;
+import java.util.UUID;
 
 public class BfDataCache {
 	public final IdentifiableCacheHolder<AbstractClanData> clanData;
 	public final SingletonCacheHolder<BfCloudData> cloudData;
+	public final IdentifiableCacheHolder<Set<UUID>> itemDefault;
 	public final IdentifiableCacheHolder<BfPlayerData> playerData;
 	public final AccumulatedCacheHolder<BfPlayerInventory> playerInventory;
 	public final IdentifiableCacheHolder<PlayerStatus> playerStatus;
@@ -24,6 +27,10 @@ public class BfDataCache {
 		cloudData = new SingletonCacheHolder<>(
 			connection, RequestType.CLOUD_STATS,
 			Duration.ofSeconds(30)
+		);
+		itemDefault = new IdentifiableCacheHolder<>(
+			connection, RequestType.PLAYER_INVENTORY_DEFAULTS,
+			Duration.ofMinutes(5)
 		);
 		playerData = new IdentifiableCacheHolder<>(
 			connection, RequestType.PLAYER_DATA,

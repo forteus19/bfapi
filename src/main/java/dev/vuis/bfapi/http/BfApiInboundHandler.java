@@ -71,6 +71,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			case "/api/v1/player_data" -> playerData(ctx, msg, qs);
 			case "/api/v1/player_data/bulk" -> playerDataBulk(ctx, msg, qs);
 			case "/api/v1/player_inventory" -> playerInventory(ctx, msg, qs);
+			case "/api/v1/player_inventory/equipped" -> playerInventoryEquipped(ctx, msg, qs);
 			case "/api/v1/player_status" -> playerStatus(ctx, msg, qs);
 			case "/api/v1/player_status/bulk" -> playerStatusBulk(ctx, msg, qs);
 			case "/api/v1/ucd/clan_list" -> ucdClanList(ctx, msg, qs);
@@ -442,6 +443,63 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 					w2.endObject();
 				})
 			)
+		);
+		if (data.expires() != null) {
+			Responses.cacheHeaders(response, data.expires());
+		}
+		return response;
+	}
+
+	private FullHttpResponse playerInventoryEquipped(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
+		if (methodResponse != null) {
+			return methodResponse;
+		}
+		if (connection == null || !connection.isConnectedAndVerified()) {
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
+				"cloud_disconnected"
+			);
+		}
+
+		Pair<UUID, FullHttpResponse> uuidResult = playerUuidFromParams(ctx, msg, qs);
+		if (uuidResult.right() != null) {
+			return uuidResult.right();
+		}
+		UUID uuid = uuidResult.left();
+
+		ExpiryHolder<Set<UUID>> data;
+		try {
+			data = connection.dataCache.itemDefault.get(uuid)
+				.get(10, TimeUnit.SECONDS);
+		} catch (ExecutionException | InterruptedException e) {
+			log.error("error while retrieving player data", e);
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				"internal_server_error"
+			);
+		} catch (TimeoutException e) {
+			return Responses.error(
+				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
+				"packet_timeout"
+			);
+		}
+
+		FullHttpResponse response = Responses.json(
+			ctx, msg,
+			HttpResponseStatus.OK,
+			w -> {
+				w.beginObject();
+				w.name("equipped").beginArray();
+				for (UUID equippedUuid : data.value()) {
+					w.value(Util.getBase64Uuid(equippedUuid));
+				}
+				w.endArray();
+				w.name("player").beginObject();
+				Serialization.playerStub(w, connection.dataCache, uuid);
+				w.endObject();
+				w.endObject();
+			}
 		);
 		if (data.expires() != null) {
 			Responses.cacheHeaders(response, data.expires());

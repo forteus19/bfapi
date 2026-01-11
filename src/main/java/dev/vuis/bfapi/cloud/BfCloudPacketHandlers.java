@@ -11,6 +11,7 @@ import com.boehmod.bflib.cloud.packet.common.PacketNotificationFromCloud;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedClanData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedCloudData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedInventory;
+import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedItemDefault;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerDataSet;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerStatusSet;
@@ -36,6 +37,7 @@ public final class BfCloudPacketHandlers {
 		registerPacketHandler(PacketRequestedClanData.class, BfCloudPacketHandlers::requestedClanData);
 		registerPacketHandler(PacketRequestedCloudData.class, BfCloudPacketHandlers::requestedCloudData);
 		registerPacketHandler(PacketRequestedInventory.class, BfCloudPacketHandlers::requestedInventory);
+		registerPacketHandler(PacketRequestedItemDefault.class, BfCloudPacketHandlers::requestedItemDefault);
 		registerPacketHandler(PacketRequestedPlayerData.class, BfCloudPacketHandlers::requestedPlayerData);
 		registerPacketHandler(PacketRequestedPlayerDataSet.class, BfCloudPacketHandlers::requestedPlayerDataSet);
 		registerPacketHandler(PacketRequestedPlayerStatusSet.class, BfCloudPacketHandlers::requestedPlayerStatusSet);
@@ -80,6 +82,10 @@ public final class BfCloudPacketHandlers {
 
 	private static void requestedInventory(PacketRequestedInventory packet, BfConnection connection) {
 		connection.dataCache.playerInventory.supply(packet.uuid(), inventory -> inventory.onReceiveSection(packet.stacks(), packet.section()));
+	}
+
+	private static void requestedItemDefault(PacketRequestedItemDefault packet, BfConnection connection) {
+		connection.dataCache.itemDefault.complete(packet.uuid(), packet.itemStacks());
 	}
 
 	private static void requestedPlayerData(PacketRequestedPlayerData packet, BfConnection connection) {
