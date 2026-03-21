@@ -1,12 +1,17 @@
 package dev.vuis.bfapi.cloud;
 
+import com.boehmod.bflib.cloud.common.item.CloudItemStack;
 import com.boehmod.bflib.cloud.common.player.PlayerDataContext;
 import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
+import com.boehmod.bflib.cloud.common.reward.AbstractItemRewardType;
+import com.boehmod.bflib.cloud.common.reward.ExpRewardType;
+import com.boehmod.bflib.cloud.common.reward.RewardType;
 import com.boehmod.bflib.cloud.packet.IPacket;
 import com.boehmod.bflib.cloud.packet.IPacketHandlerFunction;
 import com.boehmod.bflib.cloud.packet.PacketRegistry;
 import com.boehmod.bflib.cloud.packet.common.PacketChatMessageFromCloud;
 import com.boehmod.bflib.cloud.packet.common.PacketClientMessagePopup;
+import com.boehmod.bflib.cloud.packet.common.PacketDailyReward;
 import com.boehmod.bflib.cloud.packet.common.PacketNotificationFromCloud;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedClanData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedCloudData;
@@ -33,6 +38,7 @@ public final class BfCloudPacketHandlers {
 	public static void register() {
 		registerPacketHandler(PacketChatMessageFromCloud.class, BfCloudPacketHandlers::chatMessageFromCloud);
 		registerPacketHandler(PacketClientMessagePopup.class, BfCloudPacketHandlers::clientMessagePopup);
+		registerPacketHandler(PacketDailyReward.class, BfCloudPacketHandlers::dailyReward);
 		registerPacketHandler(PacketNotificationFromCloud.class, BfCloudPacketHandlers::notificationFromCloud);
 		registerPacketHandler(PacketRequestedClanData.class, BfCloudPacketHandlers::requestedClanData);
 		registerPacketHandler(PacketRequestedCloudData.class, BfCloudPacketHandlers::requestedCloudData);
@@ -54,6 +60,25 @@ public final class BfCloudPacketHandlers {
 
 	private static void clientMessagePopup(PacketClientMessagePopup packet, BfConnection connection) {
 		log.info("cloud popup message:\n{}\n{}\n{}", packet.type(), packet.title(), packet.message());
+	}
+
+	private static void dailyReward(PacketDailyReward packet, BfConnection connection) {
+		log.info("login streak: {}", packet.streak());
+		for (RewardType reward : packet.rewards()) {
+			switch (reward) {
+				case ExpRewardType expReward -> {
+					log.info("- exp reward: {}", expReward.getAmount());
+				}
+				case AbstractItemRewardType itemReward -> {
+					CloudItemStack stack = itemReward.getGrantedStack();
+					if (stack != null) {
+						log.info("- item reward: {}", itemReward.getGrantedStack().getDisplayName(connection.registry));
+					}
+				}
+				default -> {
+				}
+			}
+		}
 	}
 
 	private static void notificationFromCloud(PacketNotificationFromCloud packet, BfConnection connection) {
