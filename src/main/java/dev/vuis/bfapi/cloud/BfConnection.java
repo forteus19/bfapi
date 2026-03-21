@@ -17,9 +17,8 @@ import com.boehmod.bflib.cloud.packet.primitives.ClientLoginPacket;
 import com.boehmod.bflib.cloud.packet.primitives.ClientLogoutPacket;
 import com.boehmod.bflib.cloud.packet.primitives.EncryptionKeyExchangePacket;
 import com.boehmod.bflib.cloud.packet.primitives.EncryptionReadyPacket;
-import dev.vuis.bfapi.auth.MinecraftAuth;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
-import dev.vuis.bfapi.data.MinecraftProfile;
+import dev.vuis.bfapi.util.AuthUtil;
 import dev.vuis.bfapi.util.Util;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -50,6 +49,9 @@ import java.util.function.Consumer;
 import javax.crypto.SecretKey;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import net.raphimc.minecraftauth.java.JavaAuthManager;
+import net.raphimc.minecraftauth.java.model.MinecraftProfile;
+import net.raphimc.minecraftauth.java.model.MinecraftToken;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -80,8 +82,7 @@ public class BfConnection extends Connection<BfPlayerData> {
 	}
 
 	private final SocketAddress address;
-	private final MinecraftAuth mcAuth;
-	private final MinecraftProfile mcProfile;
+	private final JavaAuthManager mcAuth;
 	private final String version;
 	private final String versionHash;
 	private final byte[] hardwareId;
@@ -90,11 +91,10 @@ public class BfConnection extends Connection<BfPlayerData> {
 	private @Nullable Channel channel = null;
 	private int connectAttempts = 0;
 
-	public BfConnection(SocketAddress address, MinecraftAuth mcAuth, MinecraftProfile mcProfile, String version, String versionHash, byte[] hardwareId) {
+	public BfConnection(SocketAddress address, JavaAuthManager mcAuth, String version, String versionHash, byte[] hardwareId) {
 		super(30 * 20);
 		this.address = address;
 		this.mcAuth = mcAuth;
-		this.mcProfile = mcProfile;
 		this.version = version;
 		this.versionHash = versionHash;
 		this.hardwareId = hardwareId;
@@ -141,10 +141,12 @@ public class BfConnection extends Connection<BfPlayerData> {
 	private void sendCredentials() throws IOException {
 		log.info("sending cloud credentials");
 
+		MinecraftProfile mcProfile = mcAuth.getMinecraftProfile().getUpToDate();
+
 		EncryptedConnectionCredentials credentials = new EncryptedConnectionCredentials(
 			getType(),
-			mcProfile.uuid(),
-			mcProfile.username(),
+			mcProfile.getId(),
+			mcProfile.getName(),
 			version,
 			versionHash,
 			hardwareId,
@@ -190,7 +192,9 @@ public class BfConnection extends Connection<BfPlayerData> {
 
 				log.info("joining session server");
 				try {
-					mcAuth.joinServer(mcProfile, serverId);
+					MinecraftProfile mcProfile = mcAuth.getMinecraftProfile().getUpToDate();
+					MinecraftToken mcToken = mcAuth.getMinecraftToken().getUpToDate();
+					AuthUtil.mcJoinServer(mcProfile.getId(), mcToken.getToken(), serverId);
 				} catch (IOException | InterruptedException e) {
 					log.error("failed to join session server", e);
 					disconnect("failed to join session server", true);

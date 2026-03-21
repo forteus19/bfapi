@@ -21,6 +21,8 @@ configurations {
 
 dependencies {
     "outerJar"("maven.modrinth:blockfront:${blockfrontModVersion}")
+    implementation(files("build/extracted/blockfront-library.jar"))
+
     compileOnly("org.jetbrains:annotations:26.0.2-1")
 
     implementation("org.slf4j:slf4j-api:2.0.17")
@@ -32,6 +34,8 @@ dependencies {
     implementation("com.google.guava:guava:33.5.0-jre")
     implementation("com.google.code.gson:gson:2.13.2")
     implementation("it.unimi.dsi:fastutil:8.5.18")
+    implementation("net.raphimc:MinecraftAuth:5.0.0")
+
     compileOnly("org.projectlombok:lombok:1.18.42")
     annotationProcessor("org.projectlombok:lombok:1.18.42")
 
@@ -40,7 +44,6 @@ dependencies {
 
     testCompileOnly("org.projectlombok:lombok:1.18.42")
     testAnnotationProcessor("org.projectlombok:lombok:1.18.42")
-    implementation(files("build/extracted/blockfront-library.jar"))
 }
 
 tasks.test {

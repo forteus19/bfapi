@@ -18,11 +18,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 
 @Slf4j
-public record MinecraftProfile(
+public record MinecraftProfileData(
 	UUID uuid,
 	String username
 ) {
-	public static final Cache<String, Optional<MinecraftProfile>> CACHE_BY_NAME = CacheBuilder.newBuilder()
+	public static final Cache<String, Optional<MinecraftProfileData>> CACHE_BY_NAME = CacheBuilder.newBuilder()
 		.expireAfterWrite(Duration.ofMinutes(30))
 		.maximumSize(500)
 		.build();
@@ -30,14 +30,14 @@ public record MinecraftProfile(
 	private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-z0-9_]{3,16}$", Pattern.CASE_INSENSITIVE);
 	private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
-	public static Optional<MinecraftProfile> retrieveByName(@NotNull String name) throws IOException, InterruptedException {
+	public static Optional<MinecraftProfileData> retrieveByName(@NotNull String name) throws IOException, InterruptedException {
 		String lookupName = name.toLowerCase();
 
 		if (!USERNAME_PATTERN.matcher(lookupName).matches()) {
 			return Optional.empty();
 		}
 
-		Optional<MinecraftProfile> cached = CACHE_BY_NAME.getIfPresent(lookupName);
+		Optional<MinecraftProfileData> cached = CACHE_BY_NAME.getIfPresent(lookupName);
 		if (cached != null) {
 			return cached;
 		}
@@ -66,7 +66,7 @@ public record MinecraftProfile(
 			return Optional.empty();
 		}
 
-		Optional<MinecraftProfile> profile = Optional.of(new MinecraftProfile(
+		Optional<MinecraftProfileData> profile = Optional.of(new MinecraftProfileData(
 			Util.parseUndashedUuid(json.get("id").getAsString()),
 			json.get("name").getAsString()
 		));

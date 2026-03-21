@@ -2,13 +2,12 @@ package dev.vuis.bfapi.http;
 
 import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
-import dev.vuis.bfapi.auth.MsCodeWrapper;
 import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.BfPlayerInventory;
 import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
-import dev.vuis.bfapi.data.MinecraftProfile;
+import dev.vuis.bfapi.data.MinecraftProfileData;
 import dev.vuis.bfapi.data.Serialization;
 import dev.vuis.bfapi.util.Responses;
 import dev.vuis.bfapi.util.Util;
@@ -50,9 +49,7 @@ import org.jetbrains.annotations.Nullable;
 @ChannelHandler.Sharable
 public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 	private static final int MAX_BULK_SIZE = 128;
-	public static final String AUTH_CALLBACK_PATH = "/server_auth_callback";
 
-	private final MsCodeWrapper msCodeWrapper;
 	private final String bfRefreshSecret;
 	public BfConnection connection = null;
 	public UnofficialCloudData ucd = null;
@@ -64,7 +61,6 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		boolean keepAlive = HttpUtil.isKeepAlive(msg);
 
 		FullHttpResponse response = switch (path) {
-			case AUTH_CALLBACK_PATH -> msCodeWrapper != null ? serverAuthCallback(ctx, msg, qs) : null;
 			case "/api/v1/clan_data" -> clanData(ctx, msg, qs);
 			case "/api/v1/clan_data/bulk" -> clanDataBulk(ctx, msg, qs);
 			case "/api/v1/cloud_data" -> cloudData(ctx, msg, qs);
@@ -96,49 +92,6 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		} else {
 			ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
 		}
-	}
-
-	private FullHttpResponse serverAuthCallback(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
-		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
-		if (methodResponse != null) {
-			return methodResponse;
-		}
-
-		if (msCodeWrapper.future().isDone()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.FORBIDDEN,
-				"already_authenticated"
-			);
-		}
-
-		if (!qs.parameters().containsKey("code")) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.BAD_REQUEST,
-				"missing_code"
-			);
-		}
-		if (!qs.parameters().containsKey("state")) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.BAD_REQUEST,
-				"missing_state"
-			);
-		}
-
-		String state = qs.parameters().get("state").getFirst();
-		if (!state.equals(msCodeWrapper.state())) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.FORBIDDEN,
-				"unexpected_state"
-			);
-		}
-
-		String code = qs.parameters().get("code").getFirst();
-		msCodeWrapper.future().complete(code);
-
-		return Responses.string(
-			ctx, msg, HttpResponseStatus.OK,
-			"Authentication completed"
-		);
 	}
 
 	private FullHttpResponse clanData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
@@ -728,9 +681,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 			uuid = uuidParseResult.orElseThrow();
 		} else {
-			Optional<MinecraftProfile> profile;
+			Optional<MinecraftProfileData> profile;
 			try {
-				profile = MinecraftProfile.retrieveByName(qs.parameters().get("name").getFirst());
+				profile = MinecraftProfileData.retrieveByName(qs.parameters().get("name").getFirst());
 			} catch (IOException | InterruptedException e) {
 				return Pair.of(null, Responses.error(
 					ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
