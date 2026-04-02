@@ -219,6 +219,9 @@ public class BfConnection extends Connection<BfPlayerData> {
 //					30, TimeUnit.MINUTES
 //				);
 			}
+			case CLOSED -> {
+				reconnect(false);
+			}
 		}
 
 		for (Consumer<ConnectionStatus> statusListener : statusListeners) {

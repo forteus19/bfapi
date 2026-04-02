@@ -2,7 +2,6 @@ package dev.vuis.bfapi.util;
 
 import com.google.common.base.Suppliers;
 import com.google.gson.JsonObject;
-import io.netty.handler.codec.http.HttpHeaderNames;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -33,7 +32,7 @@ public final class AuthUtil {
 
 		HttpRequest request = HttpRequest.newBuilder()
 			.uri(MC_JOIN_SERVER_URI)
-			.header(HttpHeaderNames.CONTENT_TYPE.toString(), "application/json")
+			.header("Content-Type", "application/json")
 			.POST(HttpRequest.BodyPublishers.ofString(body))
 			.build();
 
