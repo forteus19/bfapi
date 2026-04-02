@@ -5,6 +5,7 @@ import com.boehmod.bflib.cloud.packet.common.PacketClientRequest;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedFriends;
 import com.google.common.graph.GraphBuilder;
 import com.google.common.graph.MutableGraph;
+import com.google.gson.JsonObject;
 import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfCloudPacketHandlers;
 import dev.vuis.bfapi.cloud.BfConnection;
@@ -18,6 +19,9 @@ import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
 import it.unimi.dsi.fastutil.objects.ObjectList;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
@@ -39,6 +43,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import net.lenni0451.commons.httpclient.HttpClient;
 import net.raphimc.minecraftauth.MinecraftAuth;
 import net.raphimc.minecraftauth.java.JavaAuthManager;
 import net.raphimc.minecraftauth.java.model.MinecraftProfile;
@@ -51,6 +56,7 @@ public final class ApiMain {
 	private static final InetSocketAddress BF_CLOUD_ADDRESS = new InetSocketAddress("cloud.blockfrontmc.com", 1924);
 
 	private static final int PORT = Integer.parseInt(Util.getEnvOrThrow("PORT"));
+	private static final Path TOKENS_JSON_PATH = Path.of(Util.getEnvOrElse("TOKENS_JSON_PATH", "bfapi_auth_tokens.json"));
 	private static final String BF_VERSION = Util.getEnvOrThrow("BF_VERSION");
 	private static final String BF_VERSION_HASH = Util.getEnvOrThrow("BF_VERSION_HASH");
 	private static final byte[] BF_HARDWARE_ID = Util.parseHexArray(Util.getEnvOrThrow("BF_HARDWARE_ID"));
@@ -72,15 +78,22 @@ public final class ApiMain {
 		Set<UUID> ucdPlayers = Arrays.stream(Files.readString(Path.of(BF_PLAYER_LIST_FILE)).split("\n"))
 			.map(UUID::fromString).collect(Collectors.toSet());
 
-		JavaAuthManager mcAuth = JavaAuthManager.create(MinecraftAuth.createHttpClient("bfapi/1.0-SNAPSHOT"))
-			.login(DeviceCodeMsaAuthService::new, (Consumer<MsaDeviceCode>) code -> log.info("microsoft auth URL: {}", code.getDirectVerificationUri()));
+		HttpClient authHttpClient = MinecraftAuth.createHttpClient("bfapi/1.0-SNAPSHOT");
+		JavaAuthManager authManager = tryLoadAuthJson(authHttpClient);
+		if (authManager == null) {
+			authManager = JavaAuthManager.create(authHttpClient)
+				.login(DeviceCodeMsaAuthService::new, (Consumer<MsaDeviceCode>) code -> log.info("microsoft auth URL: {}", code.getDirectVerificationUri()));
+		}
 
 		log.info("retrieving profile");
-		MinecraftProfile mcProfile = mcAuth.getMinecraftProfile().getUpToDate();
+		MinecraftProfile mcProfile = authManager.getMinecraftProfile().getUpToDate();
 
 		log.info("authenticated as {} ({})", mcProfile.getName(), mcProfile.getId());
 		log.info("press enter to continue");
 		IO.readln();
+
+		log.info("saving auth tokens");
+		saveAuthJson(authManager);
 
 		log.info("starting HTTP server");
 		BfApiInboundHandler inboundHandler = new BfApiInboundHandler(BF_UCD_REFRESH_SECRET);
@@ -91,7 +104,7 @@ public final class ApiMain {
 			BfCloudPacketHandlers.registerPacketHandler(PacketRequestedFriends.class, ApiMain::handleFriendScrapePacket);
 		}
 
-		BfConnection connection = new BfConnection(BF_CLOUD_ADDRESS, mcAuth, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
+		BfConnection connection = new BfConnection(BF_CLOUD_ADDRESS, authManager, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
 		connection.connect();
 
 		UnofficialCloudData ucd = new UnofficialCloudData(ucdPlayers, connection.dataCache, BF_UCD_WRITE_FILTERED_PLAYERS);
@@ -121,6 +134,24 @@ public final class ApiMain {
 				}
 			}
 		});
+	}
+
+	private static JavaAuthManager tryLoadAuthJson(HttpClient authHttpClient) {
+		if (!Files.isRegularFile(TOKENS_JSON_PATH)) {
+			return null;
+		}
+		try (BufferedReader tokensReader = Files.newBufferedReader(TOKENS_JSON_PATH)) {
+			return JavaAuthManager.fromJson(authHttpClient, Util.PRETTY_GSON.fromJson(tokensReader, JsonObject.class));
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private static void saveAuthJson(JavaAuthManager authManager) throws IOException {
+		JsonObject serializedTokens = JavaAuthManager.toJson(authManager);
+		try (BufferedWriter tokensWriter = Files.newBufferedWriter(TOKENS_JSON_PATH)) {
+			Util.PRETTY_GSON.toJson(serializedTokens, tokensWriter);
+		}
 	}
 
 	private static void startHttpServer(BfApiInboundHandler inboundHandler) {
