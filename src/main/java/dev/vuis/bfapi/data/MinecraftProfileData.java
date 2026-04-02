@@ -45,7 +45,8 @@ public record MinecraftProfileData(
 		log.info("refreshing minecraft profile for {}", lookupName);
 
 		HttpRequest request = HttpRequest.newBuilder()
-			.uri(URI.create("https://api.minetools.eu/uuid/" + lookupName))
+			.uri(URI.create("https://api.mojang.com/minecraft/profile/lookup/name/" + lookupName))
+			.header("User-Agent", BfApiConfig.instance().getHttpUserAgent())
 			.GET()
 			.build();
 
@@ -60,11 +61,6 @@ public record MinecraftProfileData(
 		}
 
 		JsonObject json = Util.COMPACT_GSON.fromJson(response.body(), JsonObject.class);
-
-		if (json.get("status").getAsString().equals("ERR")) {
-			CACHE_BY_NAME.put(lookupName, Optional.empty());
-			return Optional.empty();
-		}
 
 		Optional<MinecraftProfileData> profile = Optional.of(new MinecraftProfileData(
 			Util.parseUndashedUuid(json.get("id").getAsString()),

@@ -8,6 +8,7 @@ import com.google.gson.GsonBuilder;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.util.cache.ExpiryHolder;
+import java.net.InetSocketAddress;
 import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -65,19 +66,6 @@ public final class Util {
 		} else {
 			return null;
 		}
-	}
-
-	public static String getEnvOrThrow(@NotNull String name) {
-		String value = System.getenv(name);
-		if (value == null) {
-			throw new RuntimeException("Environment variable " + name + " is not set");
-		}
-		return value;
-	}
-
-	public static String getEnvOrElse(@NotNull String name, @NotNull String defaultValue) {
-		String value = System.getenv(name);
-		return value != null ? value : defaultValue;
 	}
 
 	public static String urlEncode(@NotNull String str) {
@@ -152,6 +140,17 @@ public final class Util {
 		}
 
 		return sb.toString();
+	}
+
+	public static @NotNull InetSocketAddress parseInetSocketAddress(@NotNull String str, int defaultPort) {
+		String[] parts = str.split(":");
+		if (parts.length == 1) {
+			return new InetSocketAddress(parts[0], defaultPort);
+		} else if (parts.length == 2) {
+			return new InetSocketAddress(parts[0], Integer.parseInt(parts[1]));
+		} else {
+			throw new IllegalArgumentException("Invalid InetSocketAddress");
+		}
 	}
 
 	public static @NotNull String getCachedPlayerName(@Nullable BfDataCache dataCache, @NotNull UUID uuid) {

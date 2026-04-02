@@ -125,7 +125,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 				w.value(expRank + 1);
 			} else {
 				w.nullValue();
-				if (Util.hasPrestigeExp(this)) {
+				if (!ucd.isEmpty() && Util.hasPrestigeExp(this)) {
 					log.warn("player {} ({}) has prestige exp but is not on EXP leaderboard", getUsername(), getUUID());
 				}
 			}
@@ -177,6 +177,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 	}
 
 	@Override
+	@SuppressWarnings("DataFlowIssue")
 	protected @NotNull BfPlayerInventory createInventory() {
 		// not used
 		return null;

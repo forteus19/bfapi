@@ -39,6 +39,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,9 +51,10 @@ import org.jetbrains.annotations.Nullable;
 public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 	private static final int MAX_BULK_SIZE = 128;
 
-	private final String bfRefreshSecret;
-	public BfConnection connection = null;
-	public UnofficialCloudData ucd = null;
+	public final AtomicReference<BfConnection> connectionReference = new AtomicReference<>();
+	public final AtomicReference<UnofficialCloudData> ucdReference = new AtomicReference<>();
+
+	private final String ucdRefreshSecret;
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) {
@@ -95,6 +97,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse clanData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		BfConnection connection = connectionReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -149,6 +153,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse clanDataBulk(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs){
+		BfConnection connection = connectionReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.POST);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -196,6 +202,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse cloudData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		BfConnection connection = connectionReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -235,6 +243,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse playerData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		BfConnection connection = connectionReference.get();
+		UnofficialCloudData ucd = ucdReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -280,6 +291,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse playerDataBulk(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		BfConnection connection = connectionReference.get();
+		UnofficialCloudData ucd = ucdReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.POST);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -327,6 +341,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse playerInventory(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		BfConnection connection = connectionReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -404,6 +420,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse playerInventoryEquipped(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		BfConnection connection = connectionReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -461,6 +479,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse playerStatus(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		BfConnection connection = connectionReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -514,6 +534,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse playerStatusBulk(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		BfConnection connection = connectionReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.POST);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -571,6 +593,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse ucdClanList(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		UnofficialCloudData ucd = ucdReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -589,6 +613,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse ucdPlayerExpLeaderboard(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		UnofficialCloudData ucd = ucdReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -608,6 +634,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private FullHttpResponse bfUcdRefresh(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		BfConnection connection = connectionReference.get();
+		UnofficialCloudData ucd = ucdReference.get();
+
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.POST);
 		if (methodResponse != null) {
 			return methodResponse;
@@ -622,7 +651,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		ByteBuf content = msg.content();
 		int contentLength = content.readableBytes();
 
-		if (contentLength != bfRefreshSecret.length()) {
+		if (contentLength != ucdRefreshSecret.length()) {
 			return Responses.error(
 				ctx, msg, HttpResponseStatus.FORBIDDEN,
 				"invalid_secret"
@@ -633,7 +662,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		content.readBytes(secretBytes);
 		String secret = new String(secretBytes, StandardCharsets.US_ASCII);
 
-		if (!secret.equals(bfRefreshSecret)) {
+		if (!secret.equals(ucdRefreshSecret)) {
 			return Responses.error(
 				ctx, msg, HttpResponseStatus.FORBIDDEN,
 				"invalid_secret"

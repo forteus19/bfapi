@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * @apiNote UUID uniqueness when calling {@link #get(Collection)} and {@link #request(Collection, boolean)} is the caller's responsibility!!!
+ * @apiNote UUID uniqueness when calling {@link #get(Collection)} and {@link #request(Collection, boolean)} is the caller's responsibility
  */
 public class IdentifiableCacheHolder<T> {
 	protected final BfConnection connection;

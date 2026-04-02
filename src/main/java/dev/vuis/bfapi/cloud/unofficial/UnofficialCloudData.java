@@ -48,11 +48,16 @@ public class UnofficialCloudData {
 	@Getter
 	private Set<UUID> clanList = Set.of();
 
-	public boolean isRefreshing() {
-		return refreshing.get();
+	public boolean isEmpty() {
+		return playerList.isEmpty();
 	}
 
 	public boolean startRefresh() {
+		if (isEmpty()) {
+			log.warn("skipping UCD refresh due to empty player list");
+			return true;
+		}
+
 		if (!refreshing.compareAndSet(false, true)) {
 			log.warn("tried to start UCD refresh while still processing");
 			return false;

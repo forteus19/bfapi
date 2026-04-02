@@ -6,6 +6,7 @@ import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfCloudPacketHandlers;
 import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
+import dev.vuis.bfapi.data.BfApiConfig;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
 import dev.vuis.bfapi.http.BfApiInboundHandler;
 import dev.vuis.bfapi.util.FriendScraper;
@@ -18,7 +19,6 @@ import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -44,19 +44,6 @@ import org.jetbrains.annotations.Nullable;
 
 @Slf4j
 public final class ApiMain {
-	private static final InetSocketAddress BF_CLOUD_ADDRESS = new InetSocketAddress("cloud.blockfrontmc.com", 1924);
-
-	private static final int PORT = Integer.parseInt(Util.getEnvOrThrow("PORT"));
-	private static final Path TOKENS_JSON_PATH = Path.of(Util.getEnvOrElse("TOKENS_JSON_PATH", "bfapi_auth_tokens.json"));
-	private static final String BF_VERSION = Util.getEnvOrThrow("BF_VERSION");
-	private static final String BF_VERSION_HASH = Util.getEnvOrThrow("BF_VERSION_HASH");
-	private static final byte[] BF_HARDWARE_ID = Util.parseHexArray(Util.getEnvOrThrow("BF_HARDWARE_ID"));
-	private static final String BF_PLAYER_LIST_FILE = Util.getEnvOrThrow("BF_PLAYER_LIST_FILE");
-	private static final String BF_UCD_REFRESH_SECRET = Util.getEnvOrThrow("BF_UCD_REFRESH_SECRET");
-	private static final boolean BF_UCD_WRITE_FILTERED_PLAYERS = Boolean.parseBoolean(Util.getEnvOrElse("BF_UCD_WRITE_FILTERED_PLAYERS", "false"));
-	private static final boolean BF_SCRAPE_FRIENDS = Boolean.parseBoolean(Util.getEnvOrElse("BF_SCRAPE_FRIENDS", "false"));
-	private static final int BF_SCRAPE_FRIENDS_DEPTH = Integer.parseInt(Util.getEnvOrElse("BF_SCRAPE_FRIENDS_DEPTH", "2"));
-
 	private static final ScheduledExecutorService refreshExecutor = Executors.newSingleThreadScheduledExecutor();
 	private static @Nullable ScheduledFuture<?> cloudDataRefreshFuture = null;
 
@@ -65,14 +52,19 @@ public final class ApiMain {
 
 	@SneakyThrows
 	static void main() {
-		Set<UUID> ucdPlayers = Arrays.stream(Files.readString(Path.of(BF_PLAYER_LIST_FILE)).split("\n"))
-			.map(UUID::fromString).collect(Collectors.toSet());
+		BfApiConfig config = BfApiConfig.instance();
 
-		HttpClient authHttpClient = MinecraftAuth.createHttpClient("bfapi/1.0-SNAPSHOT");
-		JavaAuthManager authManager = tryLoadAuthJson(authHttpClient);
+		Set<UUID> ucdPlayers;
+		if (config.getBfPlayerListPath() != null) {
+			ucdPlayers = parsePlayerListFile(config.getBfPlayerListPath());
+		} else {
+			ucdPlayers = Set.of();
+		}
+
+		HttpClient authHttpClient = MinecraftAuth.createHttpClient(config.getHttpUserAgent());
+		JavaAuthManager authManager = tryLoadAuthJson(authHttpClient, config.getTokensJsonPath());
 		if (authManager == null) {
-			authManager = JavaAuthManager.create(authHttpClient)
-				.login(DeviceCodeMsaAuthService::new, (Consumer<MsaDeviceCode>) code -> log.info("microsoft auth URL: {}", code.getDirectVerificationUri()));
+			authManager = createAndLoginAuthManager(authHttpClient);
 		}
 
 		log.info("retrieving profile");
@@ -83,60 +75,82 @@ public final class ApiMain {
 		IO.readln();
 
 		log.info("saving auth tokens");
-		saveAuthJson(authManager);
+		saveAuthJson(authManager, config.getTokensJsonPath());
 
 		log.info("starting HTTP server");
-		BfApiInboundHandler inboundHandler = new BfApiInboundHandler(BF_UCD_REFRESH_SECRET);
-		startHttpServer(inboundHandler);
+		BfApiInboundHandler inboundHandler = new BfApiInboundHandler(config.getBfUcdRefreshSecret());
+		startHttpServer(inboundHandler, config.getApiPort());
 
 		BfCloudPacketHandlers.register();
-		if (BF_SCRAPE_FRIENDS) {
+		if (config.isBfScrapeFriends()) {
 			FriendScraper.registerPacketHandlers();
 		}
 
-		BfConnection connection = new BfConnection(BF_CLOUD_ADDRESS, authManager, BF_VERSION, BF_VERSION_HASH, BF_HARDWARE_ID);
+		BfConnection connection = new BfConnection(
+			config.getBfCloudAddress(),
+			authManager,
+			config.getBfVersion(),
+			config.getBfVersionHash(),
+			config.getBfHardwareId()
+		);
 		connection.connect();
 
-		UnofficialCloudData ucd = new UnofficialCloudData(ucdPlayers, connection.dataCache, BF_UCD_WRITE_FILTERED_PLAYERS);
+		UnofficialCloudData ucd = new UnofficialCloudData(ucdPlayers, connection.dataCache, config.isBfUcdWriteFilteredPlayers());
 
-		inboundHandler.connection = connection;
-		inboundHandler.ucd = ucd;
+		inboundHandler.connectionReference.set(connection);
+		inboundHandler.ucdReference.set(ucd);
 
-		connection.addStatusListener(status -> onConnectionStatusChanged(connection, status, ucd, ucdPlayers));
+		connection.addStatusListener(status -> onConnectionStatusChanged(connection, status, config, ucd, ucdPlayers));
 	}
 
-	private static JavaAuthManager tryLoadAuthJson(HttpClient authHttpClient) {
-		if (!Files.isRegularFile(TOKENS_JSON_PATH)) {
+	private static Set<UUID> parsePlayerListFile(Path playerListPath) {
+		try {
+			return Arrays.stream(Files.readString(playerListPath).split("\n")).map(UUID::fromString).collect(Collectors.toSet());
+		} catch (Exception e) {
+			return Set.of();
+		}
+	}
+
+	private static JavaAuthManager tryLoadAuthJson(HttpClient authHttpClient, Path tokensJsonPath) {
+		if (!Files.isRegularFile(tokensJsonPath)) {
 			return null;
 		}
-		try (BufferedReader tokensReader = Files.newBufferedReader(TOKENS_JSON_PATH)) {
+
+		try (BufferedReader tokensReader = Files.newBufferedReader(tokensJsonPath)) {
 			return JavaAuthManager.fromJson(authHttpClient, Util.PRETTY_GSON.fromJson(tokensReader, JsonObject.class));
 		} catch (Exception e) {
 			return null;
 		}
 	}
 
-	private static void saveAuthJson(JavaAuthManager authManager) throws IOException {
+	private static void saveAuthJson(JavaAuthManager authManager, Path tokensJsonPath) throws IOException {
 		JsonObject serializedTokens = JavaAuthManager.toJson(authManager);
-		try (BufferedWriter tokensWriter = Files.newBufferedWriter(TOKENS_JSON_PATH)) {
+		try (BufferedWriter tokensWriter = Files.newBufferedWriter(tokensJsonPath)) {
 			Util.PRETTY_GSON.toJson(serializedTokens, tokensWriter);
 		}
 	}
 
-	private static void startHttpServer(BfApiInboundHandler inboundHandler) {
+	private static JavaAuthManager createAndLoginAuthManager(HttpClient authHttpClient) throws IOException, InterruptedException, TimeoutException {
+		return JavaAuthManager.create(authHttpClient).login(
+			DeviceCodeMsaAuthService::new,
+			(Consumer<MsaDeviceCode>) code -> log.info("microsoft auth URL: {}", code.getDirectVerificationUri())
+		);
+	}
+
+	private static void startHttpServer(BfApiInboundHandler inboundHandler, int port) {
 		ServerBootstrap bootstrap = new ServerBootstrap()
 			.group(new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory()))
 			.channel(NioServerSocketChannel.class)
 			.childHandler(new BfApiChannelInitializer(inboundHandler));
 
-		bootstrap.bind(PORT).syncUninterruptibly();
+		bootstrap.bind(port).syncUninterruptibly();
 	}
 
-	private static void onConnectionStatusChanged(BfConnection connection, ConnectionStatus status, UnofficialCloudData ucd, Set<UUID> ucdPlayers) {
+	private static void onConnectionStatusChanged(BfConnection connection, ConnectionStatus status, BfApiConfig config, UnofficialCloudData ucd, Set<UUID> ucdPlayers) {
 		switch (status) {
 			case CONNECTED_VERIFIED -> {
-				if (BF_SCRAPE_FRIENDS) {
-					new Thread(() -> FriendScraper.start(connection, ucdPlayers, BF_SCRAPE_FRIENDS_DEPTH), "friend scraper").start();
+				if (config.isBfScrapeFriends()) {
+					new Thread(() -> FriendScraper.start(connection, ucdPlayers, config.getBfScrapeFriendsDepth()), "friend scraper").start();
 				} else {
 					ucd.startRefresh();
 
