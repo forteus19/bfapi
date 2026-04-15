@@ -45,7 +45,7 @@ public record MinecraftProfileData(
 		log.info("refreshing minecraft profile for {}", lookupName);
 
 		HttpRequest request = HttpRequest.newBuilder()
-			.uri(URI.create("https://api.mojang.com/minecraft/profile/lookup/name/" + lookupName))
+			.uri(URI.create("https://api.minecraftservices.com/minecraft/profile/lookup/name/" + lookupName))
 			.header("User-Agent", BfApiConfig.instance().getHttpUserAgent())
 			.GET()
 			.build();
