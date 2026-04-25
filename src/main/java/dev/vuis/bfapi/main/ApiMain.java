@@ -88,10 +88,10 @@ public final class ApiMain {
 
 		BfConnection connection = new BfConnection(
 			config.getBfCloudAddress(),
-			authManager,
 			config.getBfVersion(),
 			config.getBfVersionHash(),
-			config.getBfHardwareId()
+			config.getBfHardwareId(),
+			authManager
 		);
 		connection.connect();
 
@@ -183,7 +183,13 @@ public final class ApiMain {
 			throw new RuntimeException(e);
 		}
 
-		connection.dataCache.playerData.request(cloudData.playerScores().stream().map(ObjectIntImmutablePair::left).collect(Collectors.toUnmodifiableSet()), true);
-		connection.dataCache.clanData.request(cloudData.clanScores().stream().map(ObjectIntImmutablePair::left).collect(Collectors.toUnmodifiableSet()), true);
+		connection.dataCache.playerData.request(
+			cloudData.playerScores().stream().map(ObjectIntImmutablePair::left).collect(Collectors.toUnmodifiableSet()),
+			true
+		);
+		connection.dataCache.clanData.request(
+			cloudData.clanScores().stream().map(ObjectIntImmutablePair::left).collect(Collectors.toUnmodifiableSet()),
+			true
+		);
 	}
 }

@@ -23,7 +23,7 @@ public record MinecraftProfileData(
 	String username
 ) {
 	public static final Cache<String, Optional<MinecraftProfileData>> CACHE_BY_NAME = CacheBuilder.newBuilder()
-		.expireAfterWrite(Duration.ofMinutes(30))
+		.expireAfterWrite(Duration.ofMinutes(60))
 		.maximumSize(500)
 		.build();
 

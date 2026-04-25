@@ -57,12 +57,17 @@ import org.jetbrains.annotations.Nullable;
 
 @Slf4j
 public class BfConnection extends Connection<BfPlayerData> {
-	private static final int MAX_CONNECT_ATTEMPTS = 5;
+	private static final int MAX_CONNECT_ATTEMPTS = 10;
 
 	private static final Random SECURE_RANDOM = new SecureRandom();
 
 	public final BfDataCache dataCache = new BfDataCache(this);
+
 	public final CloudRegistry registry = new CloudRegistry();
+	{
+		CloudAchievements.registerAchievements(registry);
+		CloudItems.registerItems(registry);
+	}
 
 	private final ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
 	private @Nullable ScheduledFuture<?> heartbeatFuture;
@@ -72,7 +77,6 @@ public class BfConnection extends Connection<BfPlayerData> {
 	private final Set<Consumer<ConnectionStatus>> statusListeners = new HashSet<>();
 
 	private final KeyPair clientKeyPair;
-
 	{
 		try {
 			clientKeyPair = EncryptionUtils.generateECDHKeyPair();
@@ -82,25 +86,22 @@ public class BfConnection extends Connection<BfPlayerData> {
 	}
 
 	private final SocketAddress address;
-	private final JavaAuthManager mcAuth;
 	private final String version;
 	private final String versionHash;
 	private final byte[] hardwareId;
+	private final JavaAuthManager mcAuth;
 
 	@Getter
 	private @Nullable Channel channel = null;
 	private int connectAttempts = 0;
 
-	public BfConnection(SocketAddress address, JavaAuthManager mcAuth, String version, String versionHash, byte[] hardwareId) {
+	public BfConnection(SocketAddress address, String version, String versionHash, byte[] hardwareId, JavaAuthManager mcAuth) {
 		super(30 * 20);
 		this.address = address;
-		this.mcAuth = mcAuth;
 		this.version = version;
 		this.versionHash = versionHash;
 		this.hardwareId = hardwareId;
-
-		CloudAchievements.registerAchievements(registry);
-		CloudItems.registerItems(registry);
+		this.mcAuth = mcAuth;
 	}
 
 	public void connect() {

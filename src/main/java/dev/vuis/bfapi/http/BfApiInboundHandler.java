@@ -152,7 +152,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		return response;
 	}
 
-	private FullHttpResponse clanDataBulk(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs){
+	private FullHttpResponse clanDataBulk(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		BfConnection connection = connectionReference.get();
 
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.POST);
@@ -173,7 +173,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		var dataFutures = connection.dataCache.clanData.get(uuidsResult.left());
 		try {
-			CompletableFuture.allOf(dataFutures.values().toArray(new CompletableFuture[0])).get(20, TimeUnit.SECONDS);
+			CompletableFuture.allOf(dataFutures.values().toArray(CompletableFuture[]::new)).get(20, TimeUnit.SECONDS);
 		} catch (InterruptedException | ExecutionException e) {
 			log.error("error while retrieving bulk clan data", e);
 			return Responses.error(
@@ -312,7 +312,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		var dataFutures = connection.dataCache.playerData.get(uuidsResult.left());
 		try {
-			CompletableFuture.allOf(dataFutures.values().toArray(new CompletableFuture[0])).get(20, TimeUnit.SECONDS);
+			CompletableFuture.allOf(dataFutures.values().toArray(CompletableFuture[]::new)).get(20, TimeUnit.SECONDS);
 		} catch (InterruptedException | ExecutionException e) {
 			log.error("error while retrieving bulk player data", e);
 			return Responses.error(
@@ -554,7 +554,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		var dataFutures = connection.dataCache.playerStatus.get(uuidsResult.left());
 		try {
-			CompletableFuture.allOf(dataFutures.values().toArray(new CompletableFuture[0])).get(20, TimeUnit.SECONDS);
+			CompletableFuture.allOf(dataFutures.values().toArray(CompletableFuture[]::new)).get(20, TimeUnit.SECONDS);
 		} catch (InterruptedException | ExecutionException e) {
 			log.error("error while retrieving bulk player status", e);
 			return Responses.error(
