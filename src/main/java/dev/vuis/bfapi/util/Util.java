@@ -184,7 +184,7 @@ public final class Util {
 	}
 
 	public static boolean hasPrestigeExp(BfPlayerData data) {
-		return data.getPrestigeLevel() > 0 || data.getExp() > PRESTIGE_EXP;
+		return data.getPrestigeLevel() > 0 || data.getExp() >= PRESTIGE_EXP;
 	}
 
 	public static <T> int indexOf(List<T> list, Predicate<T> filter) {

@@ -12,12 +12,14 @@ import com.boehmod.bflib.cloud.encryption.AESDecryptionHandler;
 import com.boehmod.bflib.cloud.encryption.AESEncryptionHandler;
 import com.boehmod.bflib.cloud.encryption.EncryptionUtils;
 import com.boehmod.bflib.cloud.packet.IPacket;
+import com.boehmod.bflib.cloud.packet.common.profile.PacketEditMood;
 import com.boehmod.bflib.cloud.packet.primitives.ClientHeartBeatPacket;
 import com.boehmod.bflib.cloud.packet.primitives.ClientLoginPacket;
 import com.boehmod.bflib.cloud.packet.primitives.ClientLogoutPacket;
 import com.boehmod.bflib.cloud.packet.primitives.EncryptionKeyExchangePacket;
 import com.boehmod.bflib.cloud.packet.primitives.EncryptionReadyPacket;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
+import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.util.AuthUtil;
 import dev.vuis.bfapi.util.Util;
 import io.netty.bootstrap.Bootstrap;
@@ -45,6 +47,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.crypto.SecretKey;
 import lombok.Getter;
@@ -68,6 +71,8 @@ public class BfConnection extends Connection<BfPlayerData> {
 		CloudAchievements.registerAchievements(registry);
 		CloudItems.registerItems(registry);
 	}
+
+	public final AtomicReference<UnofficialCloudData> ucdReference = new AtomicReference<>();
 
 	private final ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
 	private @Nullable ScheduledFuture<?> heartbeatFuture;
@@ -198,7 +203,7 @@ public class BfConnection extends Connection<BfPlayerData> {
 					AuthUtil.mcJoinServer(mcProfile.getId(), mcToken.getToken(), serverId);
 				} catch (IOException | InterruptedException e) {
 					log.error("failed to join session server", e);
-					disconnect("failed to join session server", true);
+					disconnect("failed to join session server", false);
 				}
 
 				log.info("sending login packet");
@@ -259,6 +264,45 @@ public class BfConnection extends Connection<BfPlayerData> {
 
 	public void addStatusListener(Consumer<ConnectionStatus> statusListener) {
 		statusListeners.add(statusListener);
+	}
+
+	public @Nullable String handleCommand(@NotNull String fullCommand) {
+		int commandEndIndex = fullCommand.indexOf(' ');
+
+		String command;
+		if (commandEndIndex == -1) {
+			command = fullCommand;
+		} else {
+			command = fullCommand.substring(0, commandEndIndex);
+		}
+
+		String args = null;
+		if (commandEndIndex != -1) {
+			args = fullCommand.substring(commandEndIndex + 1);
+		}
+
+		return switch (command) {
+			case "mood" -> {
+				if (args == null) {
+					yield "Missing args";
+				}
+				sendPacket(new PacketEditMood(args));
+				yield null;
+			}
+			case "ucdrefresh" -> {
+				UnofficialCloudData ucd = ucdReference.get();
+				if (ucd != null) {
+					if (ucd.startRefresh()) {
+						yield "Refreshing";
+					} else {
+						yield "Skipped";
+					}
+				} else {
+					yield null;
+				}
+			}
+			default -> "Unknown command: " + command;
+		};
 	}
 
 	@Override

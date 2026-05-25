@@ -94,6 +94,7 @@ public final class Serialization {
 	public static @NotNull JsonWriter matchData(@NotNull JsonWriter w, @NotNull MatchData matchData, @Nullable BfDataCache dataCache) throws IOException {
 		w.beginObject();
 
+		w.name("uuid").value(matchData.getUUID().toString());
 		w.name("game").value(matchData.getGame().getId());
 		w.name("map_name").value(matchData.getMapName());
 		w.name("max_players").value(matchData.getMaxPlayerCount());

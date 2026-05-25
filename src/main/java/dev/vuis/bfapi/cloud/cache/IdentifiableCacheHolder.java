@@ -76,6 +76,7 @@ public class IdentifiableCacheHolder<T> {
 			}
 
 			CompletableFuture<ExpiryHolder<T>> newFuture = new CompletableFuture<>();
+			newFuture.whenComplete((_, _) -> pending.remove(uuid));
 			pending.put(uuid, newFuture);
 
 			futures.put(uuid, newFuture);

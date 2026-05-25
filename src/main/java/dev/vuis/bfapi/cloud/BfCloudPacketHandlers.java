@@ -13,6 +13,7 @@ import com.boehmod.bflib.cloud.packet.common.PacketChatMessageFromCloud;
 import com.boehmod.bflib.cloud.packet.common.PacketClientMessagePopup;
 import com.boehmod.bflib.cloud.packet.common.PacketDailyReward;
 import com.boehmod.bflib.cloud.packet.common.PacketNotificationFromCloud;
+import com.boehmod.bflib.cloud.packet.common.friend.PacketFriendPoke;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedClanData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedCloudData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedInventory;
@@ -21,12 +22,21 @@ import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerDataSet;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerStatusSet;
 import com.boehmod.bflib.cloud.packet.common.server.PacketServerNotification;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSyntaxException;
+import dev.vuis.bfapi.data.MinecraftProfileData;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 
@@ -64,6 +74,7 @@ public final class BfCloudPacketHandlers {
 
 	private static void dailyReward(PacketDailyReward packet, BfConnection connection) {
 		log.info("login streak: {}", packet.streak());
+
 		for (RewardType reward : packet.rewards()) {
 			switch (reward) {
 				case ExpRewardType expReward -> {
@@ -82,7 +93,14 @@ public final class BfCloudPacketHandlers {
 	}
 
 	private static void notificationFromCloud(PacketNotificationFromCloud packet, BfConnection connection) {
-		log.info("cloud notification: {}", packet.message());
+		String message = packet.message();
+
+		log.info("cloud notification: {}", message);
+
+		try {
+			handleNotification(JsonParser.parseString(message), connection);
+		} catch (JsonSyntaxException _) {
+		}
 	}
 
 	private static void requestedClanData(PacketRequestedClanData packet, BfConnection connection) {
@@ -131,6 +149,90 @@ public final class BfCloudPacketHandlers {
 
 	private static void serverNotification(PacketServerNotification packet, BfConnection connection) {
 		log.info("server notification: {}", packet.message());
+	}
+
+	private static void handleNotification(JsonElement contentsElement, BfConnection connection) {
+		if (!contentsElement.isJsonObject()) {
+			return;
+		}
+		JsonObject contentsObject = contentsElement.getAsJsonObject();
+
+		JsonElement translateElement = contentsObject.get("translate");
+		if (translateElement == null || !translateElement.isJsonPrimitive()) {
+			return;
+		}
+		JsonPrimitive translatePrimitive = translateElement.getAsJsonPrimitive();
+		if (!translatePrimitive.isString()) {
+			return;
+		}
+		String translate = translatePrimitive.getAsString();
+
+		if (!translate.equals("bf.cloud.notification.friends.poke.from")) {
+			return;
+		}
+
+		JsonElement withElement = contentsObject.get("with");
+		if (withElement == null || !withElement.isJsonArray()) {
+			return;
+		}
+		JsonArray withArray = withElement.getAsJsonArray();
+
+		if (withArray.size() != 2) {
+			return;
+		}
+
+		JsonElement senderElement = withArray.get(0);
+		if (!senderElement.isJsonObject()) {
+			return;
+		}
+		JsonObject senderObject = senderElement.getAsJsonObject();
+
+		JsonElement senderNameElement = senderObject.get("text");
+		if (senderNameElement == null || !senderNameElement.isJsonPrimitive()) {
+			return;
+		}
+		JsonPrimitive senderNamePrimitive = senderNameElement.getAsJsonPrimitive();
+		if (!senderNamePrimitive.isString()) {
+			return;
+		}
+		String senderName = senderNamePrimitive.getAsString();
+
+		Optional<MinecraftProfileData> retrievedSenderProfile;
+		try {
+			retrievedSenderProfile = MinecraftProfileData.retrieveByName(senderName);
+		} catch (IOException | InterruptedException e) {
+			return;
+		}
+		if (retrievedSenderProfile.isEmpty()) {
+			return;
+		}
+		MinecraftProfileData senderProfile = retrievedSenderProfile.orElseThrow();
+
+		JsonElement messageElement = withArray.get(1);
+		if (!messageElement.isJsonObject()) {
+			return;
+		}
+		JsonObject messageObject = messageElement.getAsJsonObject();
+
+		JsonElement textElement = messageObject.get("text");
+		if (textElement == null || !textElement.isJsonPrimitive()) {
+			return;
+		}
+		JsonPrimitive textPrimitive = textElement.getAsJsonPrimitive();
+		if (!textPrimitive.isString()) {
+			return;
+		}
+		String text = textPrimitive.getAsString();
+
+		log.info("{} running command: {}", senderName, text);
+
+		String response = connection.handleCommand(text);
+		if (response != null) {
+			try {
+				connection.sendPacket(new PacketFriendPoke(senderProfile.uuid(), response));
+			} catch (Exception _) {
+			}
+		}
 	}
 
 	private static void handlePlayerData(UUID uuid, PlayerDataContext context, byte[] data, BfConnection connection) {

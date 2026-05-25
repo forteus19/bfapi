@@ -99,6 +99,7 @@ public final class ApiMain {
 
 		inboundHandler.connectionReference.set(connection);
 		inboundHandler.ucdReference.set(ucd);
+		connection.ucdReference.set(ucd);
 
 		connection.addStatusListener(status -> onConnectionStatusChanged(connection, status, config, ucd, ucdPlayers));
 	}
@@ -107,6 +108,7 @@ public final class ApiMain {
 		try {
 			return Arrays.stream(Files.readString(playerListPath).split("\n")).map(UUID::fromString).collect(Collectors.toSet());
 		} catch (Exception e) {
+			log.error("Failed to parse player list file");
 			return Set.of();
 		}
 	}
