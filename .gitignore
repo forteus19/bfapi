@@ -43,3 +43,5 @@ bin/
 
 /registry.json
 /*.txt
+*.env
+/bfapi_auth_tokens.json

@@ -1,7 +1,6 @@
 package dev.vuis.bfapi.main;
 
 import com.boehmod.bflib.cloud.connection.ConnectionStatus;
-import com.google.gson.JsonObject;
 import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfCloudPacketHandlers;
 import dev.vuis.bfapi.cloud.BfConnection;
@@ -9,16 +8,13 @@ import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.data.BfApiConfig;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
 import dev.vuis.bfapi.http.BfApiInboundHandler;
+import dev.vuis.bfapi.util.AuthUtil;
 import dev.vuis.bfapi.util.FriendScraper;
-import dev.vuis.bfapi.util.Util;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -30,7 +26,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -38,8 +33,6 @@ import net.lenni0451.commons.httpclient.HttpClient;
 import net.raphimc.minecraftauth.MinecraftAuth;
 import net.raphimc.minecraftauth.java.JavaAuthManager;
 import net.raphimc.minecraftauth.java.model.MinecraftProfile;
-import net.raphimc.minecraftauth.msa.model.MsaDeviceCode;
-import net.raphimc.minecraftauth.msa.service.impl.DeviceCodeMsaAuthService;
 import org.jetbrains.annotations.Nullable;
 
 @Slf4j
@@ -62,9 +55,9 @@ public final class ApiMain {
 		}
 
 		HttpClient authHttpClient = MinecraftAuth.createHttpClient(config.getHttpUserAgent());
-		JavaAuthManager authManager = tryLoadAuthJson(authHttpClient, config.getTokensJsonPath());
+		JavaAuthManager authManager = AuthUtil.tryLoadAuthJson(authHttpClient, config.getTokensJsonPath());
 		if (authManager == null) {
-			authManager = createAndLoginAuthManager(authHttpClient);
+			authManager = AuthUtil.createAuthManagerFromLogin(authHttpClient);
 		}
 
 		log.info("retrieving profile");
@@ -75,7 +68,7 @@ public final class ApiMain {
 		IO.readln();
 
 		log.info("saving auth tokens");
-		saveAuthJson(authManager, config.getTokensJsonPath());
+		AuthUtil.saveAuthJson(authManager, config.getTokensJsonPath());
 
 		log.info("starting HTTP server");
 		BfApiInboundHandler inboundHandler = new BfApiInboundHandler(config.getBfUcdRefreshSecret());
@@ -101,7 +94,7 @@ public final class ApiMain {
 		inboundHandler.ucdReference.set(ucd);
 		connection.ucdReference.set(ucd);
 
-		connection.addStatusListener(status -> onConnectionStatusChanged(connection, status, config, ucd, ucdPlayers));
+		connection.addStatusListener((conn, status) -> onConnectionStatusChanged(conn, status, config, ucd, ucdPlayers));
 	}
 
 	private static Set<UUID> parsePlayerListFile(Path playerListPath) {
@@ -111,32 +104,6 @@ public final class ApiMain {
 			log.error("Failed to parse player list file");
 			return Set.of();
 		}
-	}
-
-	private static JavaAuthManager tryLoadAuthJson(HttpClient authHttpClient, Path tokensJsonPath) {
-		if (!Files.isRegularFile(tokensJsonPath)) {
-			return null;
-		}
-
-		try (BufferedReader tokensReader = Files.newBufferedReader(tokensJsonPath)) {
-			return JavaAuthManager.fromJson(authHttpClient, Util.PRETTY_GSON.fromJson(tokensReader, JsonObject.class));
-		} catch (Exception e) {
-			return null;
-		}
-	}
-
-	private static void saveAuthJson(JavaAuthManager authManager, Path tokensJsonPath) throws IOException {
-		JsonObject serializedTokens = JavaAuthManager.toJson(authManager);
-		try (BufferedWriter tokensWriter = Files.newBufferedWriter(tokensJsonPath)) {
-			Util.PRETTY_GSON.toJson(serializedTokens, tokensWriter);
-		}
-	}
-
-	private static JavaAuthManager createAndLoginAuthManager(HttpClient authHttpClient) throws IOException, InterruptedException, TimeoutException {
-		return JavaAuthManager.create(authHttpClient).login(
-			DeviceCodeMsaAuthService::new,
-			(Consumer<MsaDeviceCode>) code -> log.info("microsoft auth URL: {}", code.getDirectVerificationUri())
-		);
 	}
 
 	private static void startHttpServer(BfApiInboundHandler inboundHandler, int port) {

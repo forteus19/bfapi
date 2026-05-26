@@ -48,7 +48,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import javax.crypto.SecretKey;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -79,7 +79,7 @@ public class BfConnection extends Connection<BfPlayerData> {
 
 	private final ScheduledExecutorService reconnectExecutor = Executors.newSingleThreadScheduledExecutor();
 
-	private final Set<Consumer<ConnectionStatus>> statusListeners = new HashSet<>();
+	private final Set<BiConsumer<BfConnection, ConnectionStatus>> statusListeners = new HashSet<>();
 
 	private final KeyPair clientKeyPair;
 	{
@@ -230,8 +230,8 @@ public class BfConnection extends Connection<BfPlayerData> {
 			}
 		}
 
-		for (Consumer<ConnectionStatus> statusListener : statusListeners) {
-			statusListener.accept(status);
+		for (BiConsumer<BfConnection, ConnectionStatus> statusListener : statusListeners) {
+			statusListener.accept(this, status);
 		}
 	}
 
@@ -262,7 +262,7 @@ public class BfConnection extends Connection<BfPlayerData> {
 		}
 	}
 
-	public void addStatusListener(Consumer<ConnectionStatus> statusListener) {
+	public void addStatusListener(BiConsumer<BfConnection, ConnectionStatus> statusListener) {
 		statusListeners.add(statusListener);
 	}
 
