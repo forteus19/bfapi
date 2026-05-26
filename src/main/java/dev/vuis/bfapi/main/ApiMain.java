@@ -39,6 +39,7 @@ import org.jetbrains.annotations.Nullable;
 public final class ApiMain {
 	private static final ScheduledExecutorService refreshExecutor = Executors.newSingleThreadScheduledExecutor();
 	private static @Nullable ScheduledFuture<?> cloudDataRefreshFuture = null;
+	private static boolean startupUcdRefresh = false;
 
 	private ApiMain() {
 	}
@@ -95,6 +96,17 @@ public final class ApiMain {
 		connection.ucdReference.set(ucd);
 
 		connection.addStatusListener((conn, status) -> onConnectionStatusChanged(conn, status, config, ucd, ucdPlayers));
+
+		try {
+			//noinspection InfiniteLoopStatement
+			while (true) {
+				String response = connection.handleCommand(IO.readln());
+				if (response != null) {
+					log.info(response);
+				}
+			}
+		} catch (Exception _) {
+		}
 	}
 
 	private static Set<UUID> parsePlayerListFile(Path playerListPath) {
@@ -121,7 +133,10 @@ public final class ApiMain {
 				if (config.isBfScrapeFriends()) {
 					new Thread(() -> FriendScraper.start(connection, ucdPlayers, config.getBfScrapeFriendsDepth()), "friend scraper").start();
 				} else {
-					ucd.startRefresh();
+					if (config.isBfUcdRefreshOnStartup() && !startupUcdRefresh) {
+						ucd.startRefresh();
+						startupUcdRefresh = true;
+					}
 
 					cloudDataRefreshFuture = refreshExecutor.scheduleAtFixedRate(
 						() -> refreshCloudData(connection),

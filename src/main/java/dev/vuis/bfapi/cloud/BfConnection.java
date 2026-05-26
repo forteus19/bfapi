@@ -289,6 +289,10 @@ public class BfConnection extends Connection<BfPlayerData> {
 				sendPacket(new PacketEditMood(args));
 				yield null;
 			}
+			case "reconnect" -> {
+				reconnect(true);
+				yield null;
+			}
 			case "ucdrefresh" -> {
 				UnofficialCloudData ucd = ucdReference.get();
 				if (ucd != null) {
