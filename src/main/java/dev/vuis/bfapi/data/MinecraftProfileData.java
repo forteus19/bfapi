@@ -11,6 +11,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -31,7 +32,7 @@ public record MinecraftProfileData(
 	private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
 	public static Optional<MinecraftProfileData> retrieveByName(@NotNull String name) throws IOException, InterruptedException {
-		String lookupName = name.toLowerCase();
+		String lookupName = name.toLowerCase(Locale.ROOT);
 
 		if (!USERNAME_PATTERN.matcher(lookupName).matches()) {
 			return Optional.empty();

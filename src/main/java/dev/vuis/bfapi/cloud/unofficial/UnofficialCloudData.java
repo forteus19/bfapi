@@ -161,7 +161,8 @@ public class UnofficialCloudData {
 					d.getUsername(),
 					Util.getTotalExp(d.getPrestigeLevel(), d.getExp()),
 					d.getPrestigeLevel(),
-					Util.indexOf(cloudData.playerScores(), p -> p.left().equals(d.getUUID())) != -1
+					Util.indexOf(cloudData.playerScores(), p -> p.left().equals(d.getUUID())) != -1,
+					d.getTimePlayed()
 				))
 				.toList()
 		);
@@ -216,7 +217,8 @@ public class UnofficialCloudData {
 		String username,
 		int exp,
 		int prestige,
-		boolean isActive
+		boolean isActive,
+		int timePlayed
 	) {
 		public @NotNull JsonWriter serialize(@NotNull JsonWriter w) throws IOException {
 			w.beginArray();
@@ -226,6 +228,7 @@ public class UnofficialCloudData {
 			w.value(exp);
 			w.value(prestige);
 			w.value(isActive ? 1 : 0);
+			w.value(timePlayed);
 
 			w.endArray();
 

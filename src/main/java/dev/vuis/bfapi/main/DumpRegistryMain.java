@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.util.Locale;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,14 +51,14 @@ public final class DumpRegistryMain {
 				items.add(Integer.toString(item.getId()), Util.apply(new JsonObject(), itemRoot -> {
 					itemRoot.addProperty("name", item.getName());
 					itemRoot.addProperty("suffix", item.getSuffix());
-					itemRoot.addProperty("rarity", item.getRarity().toString().toLowerCase());
+					itemRoot.addProperty("rarity", item.getRarity().name().toLowerCase(Locale.ROOT));
 					if (item.getCollection() != null) {
 						itemRoot.addProperty("collection", item.getCollection());
 					}
 					if (item.getSkin() != 0f) {
 						itemRoot.addProperty("skin_id", item.getSkin());
 					}
-					itemRoot.addProperty("type", item.getItemType().toString().toLowerCase());
+					itemRoot.addProperty("type", item.getItemType().name().toLowerCase(Locale.ROOT));
 
 					if (item instanceof ActivatedCloudItem<?> activatedItem) {
 						activatedItem.getActivationAchievement().ifPresent(achievement ->
@@ -86,7 +87,7 @@ public final class DumpRegistryMain {
 						}
 						case CloudItemBooster itemBooster -> {
 							itemRoot.addProperty("booster_type",
-								ReflectionUtil.<BoosterType>getField(itemBooster, "type").toString().toLowerCase()
+								ReflectionUtil.<BoosterType>getField(itemBooster, "type").name().toLowerCase(Locale.ROOT)
 							);
 							itemRoot.addProperty("minutes",
 								ReflectionUtil.<Integer>getField(itemBooster, "minutes")
