@@ -33,6 +33,7 @@ import net.lenni0451.commons.httpclient.HttpClient;
 import net.raphimc.minecraftauth.MinecraftAuth;
 import net.raphimc.minecraftauth.java.JavaAuthManager;
 import net.raphimc.minecraftauth.java.model.MinecraftProfile;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 @Slf4j
@@ -47,13 +48,6 @@ public final class ApiMain {
 	@SneakyThrows
 	static void main() {
 		BfApiConfig config = BfApiConfig.instance();
-
-		Set<UUID> ucdPlayers;
-		if (config.getBfPlayerListPath() != null) {
-			ucdPlayers = parsePlayerListFile(config.getBfPlayerListPath());
-		} else {
-			ucdPlayers = Set.of();
-		}
 
 		HttpClient authHttpClient = MinecraftAuth.createHttpClient(config.getHttpUserAgent());
 		JavaAuthManager authManager = AuthUtil.tryLoadAuthJson(authHttpClient, config.getTokensJsonPath());
@@ -89,13 +83,13 @@ public final class ApiMain {
 		);
 		connection.connect();
 
-		UnofficialCloudData ucd = new UnofficialCloudData(ucdPlayers, connection.dataCache, config.isBfUcdWriteFilteredPlayers());
+		UnofficialCloudData ucd = new UnofficialCloudData(() -> loadPlayerList(config.getBfPlayerListPath()), connection.dataCache, config.isBfUcdWriteFilteredPlayers());
 
 		inboundHandler.connectionReference.set(connection);
 		inboundHandler.ucdReference.set(ucd);
 		connection.ucdReference.set(ucd);
 
-		connection.addStatusListener((conn, status) -> onConnectionStatusChanged(conn, status, config, ucd, ucdPlayers));
+		connection.addStatusListener((conn, status) -> onConnectionStatusChanged(conn, status, config, ucd));
 
 		try {
 			//noinspection InfiniteLoopStatement
@@ -109,11 +103,16 @@ public final class ApiMain {
 		}
 	}
 
-	private static Set<UUID> parsePlayerListFile(Path playerListPath) {
-		try {
-			return Arrays.stream(Files.readString(playerListPath).split("\n")).map(UUID::fromString).collect(Collectors.toSet());
-		} catch (Exception e) {
-			log.error("Failed to parse player list file");
+	private static @NotNull Set<UUID> loadPlayerList(@Nullable Path playerListPath) {
+		if (playerListPath != null) {
+			try {
+				log.info("loading player list");
+				return Arrays.stream(Files.readString(playerListPath).split("\n")).map(UUID::fromString).collect(Collectors.toSet());
+			} catch (Exception e) {
+				log.error("failed to parse player list file");
+				return Set.of();
+			}
+		} else {
 			return Set.of();
 		}
 	}
@@ -127,11 +126,14 @@ public final class ApiMain {
 		bootstrap.bind(port).syncUninterruptibly();
 	}
 
-	private static void onConnectionStatusChanged(BfConnection connection, ConnectionStatus status, BfApiConfig config, UnofficialCloudData ucd, Set<UUID> ucdPlayers) {
+	private static void onConnectionStatusChanged(BfConnection connection, ConnectionStatus status, BfApiConfig config, UnofficialCloudData ucd) {
 		switch (status) {
 			case CONNECTED_VERIFIED -> {
 				if (config.isBfScrapeFriends()) {
-					new Thread(() -> FriendScraper.start(connection, ucdPlayers, config.getBfScrapeFriendsDepth()), "friend scraper").start();
+					new Thread(
+						() -> FriendScraper.start(connection, loadPlayerList(config.getBfPlayerListPath()), config.getBfScrapeFriendsDepth()),
+						"friend scraper"
+					).start();
 				} else {
 					if (config.isBfUcdRefreshOnStartup() && !startupUcdRefresh) {
 						ucd.startRefresh();

@@ -23,8 +23,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -35,24 +36,28 @@ public class UnofficialCloudData {
 	private static final int REQUEST_CHUNK_SIZE = 32;
 	private static final Duration REQUEST_PADDING_TIME = Duration.ofSeconds(2);
 
-	private final Set<UUID> playerList;
+	private final Supplier<Set<UUID>> playerListLoader;
 	private final BfDataCache dataCache;
 	private final boolean writeFilteredPlayers;
 
 	private final AtomicBoolean refreshing = new AtomicBoolean(false);
-	@Getter
-	private Instant lastRefreshed = null;
+	private final AtomicReference<Instant> lastRefreshed = new AtomicReference<>();
 
-	@Getter
-	private List<Player> playerExpLeaderboard = List.of();
-	@Getter
-	private Set<UUID> clanList = Set.of();
+	private final AtomicReference<Set<UUID>> playerList = new AtomicReference<>(Set.of());
+	private final AtomicReference<Set<UUID>> clanList = new AtomicReference<>(Set.of());
+	private final AtomicReference<List<Player>> playerExpLeaderboard = new AtomicReference<>(List.of());
 
 	public boolean isEmpty() {
-		return playerList.isEmpty();
+		return playerList.get().isEmpty();
+	}
+
+	public List<Player> getPlayerExpLeaderboard() {
+		return playerExpLeaderboard.get();
 	}
 
 	public boolean startRefresh() {
+		playerList.set(playerListLoader.get());
+
 		if (isEmpty()) {
 			log.warn("skipping UCD refresh due to empty player list");
 			return true;
@@ -69,12 +74,14 @@ public class UnofficialCloudData {
 	}
 
 	private void refresh() {
-		int numChunks = Math.ceilDiv(playerList.size(), REQUEST_CHUNK_SIZE);
-		log.info("requesting data for {} players ({} chunks)", playerList.size(), numChunks);
+		Set<UUID> playerListGet = playerList.get();
+
+		int numChunks = Math.ceilDiv(playerListGet.size(), REQUEST_CHUNK_SIZE);
+		log.info("requesting data for {} players ({} chunks)", playerListGet.size(), numChunks);
 
 		List<BfPlayerData> playerDatas = new ArrayList<>();
 
-		Iterable<List<UUID>> uuidChunks = Iterables.partition(playerList, REQUEST_CHUNK_SIZE);
+		Iterable<List<UUID>> uuidChunks = Iterables.partition(playerListGet, REQUEST_CHUNK_SIZE);
 		int currentChunk = 0;
 
 		for (List<UUID> uuidChunk : uuidChunks) {
@@ -139,24 +146,28 @@ public class UnofficialCloudData {
 			return;
 		}
 
-		clanList = playerDatas.stream()
-			.map(BfPlayerData::getClanId)
-			.filter(Objects::nonNull)
-			.collect(Collectors.toUnmodifiableSet());
+		clanList.set(
+			playerDatas.stream()
+				.map(BfPlayerData::getClanId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toUnmodifiableSet())
+		);
 
-		playerExpLeaderboard = playerDatas.stream()
-			.sorted(Comparator.<BfPlayerData>comparingInt(d -> Util.getTotalExp(d.getPrestigeLevel(), d.getExp())).reversed())
-			.map(d -> new Player(
-				d.getUUID(),
-				d.getUsername(),
-				Util.getTotalExp(d.getPrestigeLevel(), d.getExp()),
-				d.getPrestigeLevel(),
-				Util.indexOf(cloudData.playerScores(), p -> p.left().equals(d.getUUID())) != -1
-			))
-			.toList();
+		playerExpLeaderboard.set(
+			playerDatas.stream()
+				.sorted(Comparator.<BfPlayerData>comparingInt(d -> Util.getTotalExp(d.getPrestigeLevel(), d.getExp())).reversed())
+				.map(d -> new Player(
+					d.getUUID(),
+					d.getUsername(),
+					Util.getTotalExp(d.getPrestigeLevel(), d.getExp()),
+					d.getPrestigeLevel(),
+					Util.indexOf(cloudData.playerScores(), p -> p.left().equals(d.getUUID())) != -1
+				))
+				.toList()
+		);
 
 		refreshing.set(false);
-		lastRefreshed = Instant.now();
+		lastRefreshed.set(Instant.now());
 		log.info("refresh finished");
 	}
 
@@ -176,11 +187,13 @@ public class UnofficialCloudData {
 	}
 
 	public @NotNull JsonWriter serializeClanList(@NotNull JsonWriter w) throws IOException {
+		Set<UUID> clanListGet = clanList.get();
+
 		w.beginObject();
 
 		serializeLastUpdated(w);
 		w.name("clans").beginArray();
-		for (UUID clan : clanList) {
+		for (UUID clan : clanListGet) {
 			w.value(Util.getBase64Uuid(clan));
 		}
 		w.endArray();
@@ -191,7 +204,10 @@ public class UnofficialCloudData {
 	}
 
 	private @NotNull JsonWriter serializeLastUpdated(@NotNull JsonWriter w) throws IOException {
-		w.name("last_updated").value(Util.ifNonNull(lastRefreshed, Instant::toString));
+		Instant lastRefreshedGet = lastRefreshed.get();
+
+		w.name("last_updated").value(Util.ifNonNull(lastRefreshedGet, Instant::toString));
+
 		return w;
 	}
 
