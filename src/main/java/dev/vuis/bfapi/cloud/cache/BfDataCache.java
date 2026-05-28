@@ -11,7 +11,7 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 
-public class BfDataCache {
+public class BfDataCache implements AutoCloseable {
 	public final IdentifiableCacheHolder<AbstractClanData> clanData;
 	public final SingletonCacheHolder<BfCloudData> cloudData;
 	public final IdentifiableCacheHolder<Set<UUID>> itemDefault;
@@ -44,5 +44,10 @@ public class BfDataCache {
 			connection, RequestType.PLAYER_STATUS,
 			Duration.ofSeconds(30)
 		);
+	}
+
+	@Override
+	public void close() {
+		playerInventory.close();
 	}
 }

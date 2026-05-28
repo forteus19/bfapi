@@ -59,7 +59,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 @Slf4j
-public class BfConnection extends Connection<BfPlayerData> {
+public class BfConnection extends Connection<BfPlayerData> implements AutoCloseable {
 	private static final int MAX_CONNECT_ATTEMPTS = 10;
 
 	private static final Random SECURE_RANDOM = new SecureRandom();
@@ -378,6 +378,13 @@ public class BfConnection extends Connection<BfPlayerData> {
 	@Override
 	public <T extends IPacket> void onIllegalPacket(@NotNull T packet, @NotNull ConnectionType actualType, @NotNull ConnectionType expectedType) {
 		log.error("illegal packet {} (expected: {}, actual: {})", packet.getClass().getSimpleName(), expectedType, actualType);
+	}
+
+	@Override
+	public void close() {
+		dataCache.close();
+		heartbeatExecutor.shutdown();
+		reconnectExecutor.shutdown();
 	}
 
 	private static String randomServerId() {

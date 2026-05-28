@@ -5,6 +5,7 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaders;
 
 public class HttpFixerOutboundHandler extends ChannelOutboundHandlerAdapter {
 	@Override
@@ -13,12 +14,16 @@ public class HttpFixerOutboundHandler extends ChannelOutboundHandlerAdapter {
 			super.write(ctx, msg, promise);
 			return;
 		}
-		if (!httpResponse.headers().contains(HttpHeaderNames.CONTENT_LENGTH)) {
-			httpResponse.headers().addInt(HttpHeaderNames.CONTENT_LENGTH, httpResponse.content().readableBytes());
+
+		HttpHeaders headers = httpResponse.headers();
+
+		if (!headers.contains(HttpHeaderNames.CONTENT_LENGTH)) {
+			headers.addInt(HttpHeaderNames.CONTENT_LENGTH, httpResponse.content().readableBytes());
 		}
-		if (!httpResponse.headers().contains(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN)) {
-			httpResponse.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+		if (!headers.contains(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN)) {
+			headers.add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
 		}
+
 		super.write(ctx, msg, promise);
 	}
 }

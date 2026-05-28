@@ -27,6 +27,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import net.lenni0451.commons.httpclient.HttpClient;
@@ -74,6 +75,7 @@ public final class ApiMain {
 			FriendScraper.registerPacketHandlers();
 		}
 
+		@Cleanup
 		BfConnection connection = new BfConnection(
 			config.getBfCloudAddress(),
 			config.getBfVersion(),

@@ -12,11 +12,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class AccumulatedCacheHolder<T> extends IdentifiableCacheHolder<T> {
+public class AccumulatedCacheHolder<T> extends IdentifiableCacheHolder<T> implements AutoCloseable {
 	private final Supplier<T> constructor;
 
-	private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(2);
-	private final Map<UUID, TimedAccumulator<UUID, T>> accumulators = new ConcurrentHashMap<>();
+	private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+	private final Map<UUID, TimedAccumulator<T>> accumulators = new ConcurrentHashMap<>();
 
 	AccumulatedCacheHolder(BfConnection connection, RequestType requestType, Supplier<T> constructor, Duration lifetime) {
 		super(connection, requestType, lifetime);
@@ -25,7 +25,12 @@ public class AccumulatedCacheHolder<T> extends IdentifiableCacheHolder<T> {
 
 	public void supply(UUID uuid, Consumer<T> mutator) {
 		accumulators.computeIfAbsent(
-			uuid, k -> new TimedAccumulator<>(executor, Duration.ofMillis(250), AccumulatedCacheHolder.this::complete, k, constructor.get())
+			uuid, _ -> new TimedAccumulator<>(
+				scheduler,
+				250_000_000,
+				data -> complete(uuid, data),
+				constructor.get()
+			)
 		).supply(mutator);
 	}
 
@@ -39,5 +44,10 @@ public class AccumulatedCacheHolder<T> extends IdentifiableCacheHolder<T> {
 	public void complete(UUID uuid, Exception e) {
 		super.complete(uuid, e);
 		accumulators.remove(uuid);
+	}
+
+	@Override
+	public void close() {
+		scheduler.shutdown();
 	}
 }
