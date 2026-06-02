@@ -32,7 +32,7 @@ import org.jetbrains.annotations.NotNull;
 
 @Slf4j
 @RequiredArgsConstructor
-public class UnofficialCloudData {
+public final class UnofficialCloudData {
 	private static final int REQUEST_CHUNK_SIZE = 32;
 	private static final Duration REQUEST_PADDING_TIME = Duration.ofSeconds(2);
 
@@ -49,6 +49,10 @@ public class UnofficialCloudData {
 
 	public boolean isEmpty() {
 		return playerList.get().isEmpty();
+	}
+
+	public Instant getLastRefreshed() {
+		return lastRefreshed.get();
 	}
 
 	public List<Player> getPlayerExpLeaderboard() {
@@ -172,7 +176,9 @@ public class UnofficialCloudData {
 		log.info("refresh finished");
 	}
 
-	public @NotNull JsonWriter serializePlayerLeaderboard(@NotNull JsonWriter w, @NotNull List<Player> leaderboard) throws IOException {
+	public @NotNull JsonWriter serializePlayerLeaderboard(@NotNull JsonWriter w) throws IOException {
+		List<Player> leaderboard = playerExpLeaderboard.get();
+
 		w.beginObject();
 
 		serializeLastUpdated(w);

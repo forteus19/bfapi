@@ -29,6 +29,11 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 import it.unimi.dsi.fastutil.Pair;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -626,11 +631,41 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			);
 		}
 
+		Instant lastRefreshed = ucd.getLastRefreshed();
 
-		return Responses.json(
+		try {
+			if (lastRefreshed != null && msg.headers().contains(HttpHeaderNames.IF_MODIFIED_SINCE)) {
+				Instant requestModifiedSince = DateTimeFormatter.RFC_1123_DATE_TIME
+					.parse(msg.headers().get(HttpHeaderNames.IF_MODIFIED_SINCE), ZonedDateTime::from)
+					.toInstant();
+				if (!lastRefreshed.truncatedTo(ChronoUnit.SECONDS).isAfter(requestModifiedSince)) {
+					FullHttpResponse response = new DefaultFullHttpResponse(
+						msg.protocolVersion(),
+						HttpResponseStatus.NOT_MODIFIED
+					);
+					response.headers().set(
+						HttpHeaderNames.LAST_MODIFIED,
+						Responses.formatInstant(lastRefreshed)
+					);
+					return response;
+				}
+			}
+		} catch (DateTimeParseException _) {
+		}
+
+		FullHttpResponse response = Responses.json(
 			ctx, msg, HttpResponseStatus.OK,
-			w -> ucd.serializePlayerLeaderboard(w, ucd.getPlayerExpLeaderboard())
+			ucd::serializePlayerLeaderboard
 		);
+
+		if (lastRefreshed != null) {
+			response.headers().set(
+				HttpHeaderNames.LAST_MODIFIED,
+				Responses.formatInstant(lastRefreshed)
+			);
+		}
+
+		return response;
 	}
 
 	private FullHttpResponse bfUcdRefresh(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {

@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -97,9 +98,15 @@ public final class Responses {
 		return null;
 	}
 
+	public static String formatInstant(Instant instant) {
+		return DateTimeFormatter.RFC_1123_DATE_TIME.format(
+			instant.truncatedTo(ChronoUnit.SECONDS).atZone(ZoneOffset.UTC)
+		);
+	}
+
 	public static void cacheHeaders(FullHttpResponse response, Instant expires) {
 		response.headers()
-			.set(HttpHeaderNames.EXPIRES, DateTimeFormatter.RFC_1123_DATE_TIME.format(expires.atZone(ZoneOffset.UTC)))
+			.set(HttpHeaderNames.EXPIRES, formatInstant(expires))
 			.set(HttpHeaderNames.CACHE_CONTROL, "public, max-age=" + Math.max(Duration.between(Instant.now(), expires).getSeconds(), 0));
 	}
 }
