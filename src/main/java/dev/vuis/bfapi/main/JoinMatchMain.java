@@ -9,6 +9,7 @@ import dev.vuis.bfapi.data.BfApiConfig;
 import dev.vuis.bfapi.util.AuthUtil;
 import java.net.InetSocketAddress;
 import java.util.UUID;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import net.lenni0451.commons.httpclient.HttpClient;
@@ -48,6 +49,7 @@ public final class JoinMatchMain {
 
 		BfCloudPacketHandlers.registerPacketHandler(PacketMMJoinServer.class, JoinMatchMain::handleJoinServerPacket);
 
+		@Cleanup
 		BfConnection connection = new BfConnection(
 			config.getBfCloudAddress(),
 			config.getBfVersion(),

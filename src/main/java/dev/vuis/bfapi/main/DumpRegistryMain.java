@@ -38,70 +38,78 @@ public final class DumpRegistryMain {
 
 		JsonObject root = new JsonObject();
 
-		root.add("achievements", Util.apply(new JsonObject(), achievements -> {
-			for (CloudAchievement achievement : registry.getAchievements()) {
-				achievements.add(Integer.toString(achievement.getId()), Util.apply(new JsonObject(), achievementRoot -> {
-					achievementRoot.addProperty("key", achievement.getTranslationKey());
-				}));
+		JsonObject achievementsRoot = new JsonObject();
+
+		for (CloudAchievement achievement : registry.getAchievements()) {
+			JsonObject achievementRoot = new JsonObject();
+
+			achievementRoot.addProperty("key", achievement.getTranslationKey());
+
+			achievementsRoot.add(Integer.toString(achievement.getId()), achievementRoot);
+		}
+
+		root.add("achievements", achievementsRoot);
+
+		JsonObject itemsRoot = new JsonObject();
+
+		for (CloudItem<?> item : registry.getItems()) {
+			JsonObject itemRoot = new JsonObject();
+
+			itemRoot.addProperty("name", item.getName());
+			itemRoot.addProperty("suffix", item.getSuffix());
+			itemRoot.addProperty("rarity", item.getRarity().name().toLowerCase(Locale.ROOT));
+			if (item.getCollection() != null) {
+				itemRoot.addProperty("collection", item.getCollection());
 			}
-		}));
-
-		root.add("items", Util.apply(new JsonObject(), items -> {
-			for (CloudItem<?> item : registry.getItems()) {
-				items.add(Integer.toString(item.getId()), Util.apply(new JsonObject(), itemRoot -> {
-					itemRoot.addProperty("name", item.getName());
-					itemRoot.addProperty("suffix", item.getSuffix());
-					itemRoot.addProperty("rarity", item.getRarity().name().toLowerCase(Locale.ROOT));
-					if (item.getCollection() != null) {
-						itemRoot.addProperty("collection", item.getCollection());
-					}
-					if (item.getSkin() != 0f) {
-						itemRoot.addProperty("skin_id", item.getSkin());
-					}
-					itemRoot.addProperty("type", item.getItemType().name().toLowerCase(Locale.ROOT));
-
-					if (item instanceof ActivatedCloudItem<?> activatedItem) {
-						activatedItem.getActivationAchievement().ifPresent(achievement ->
-							itemRoot.addProperty("activation_achievement", achievement.getId())
-						);
-					}
-
-					switch (item) {
-						case CloudItemArmour itemArmour -> {
-							itemRoot.addProperty("nation", itemArmour.getNation().getTag());
-						}
-						case CloudItemCase itemCase -> {
-							itemRoot.addProperty("case_key", itemCase.key.getId());
-						}
-						case CloudItemGun itemGun -> {
-							if (itemGun.hasPatternSkin()) {
-								SkinPattern skinPattern = itemGun.getPatternSkin();
-								assert skinPattern != null;
-
-								itemRoot.add("pattern_skin", Util.apply(new JsonObject(), skinPatternRoot -> {
-									skinPatternRoot.addProperty("name", skinPattern.name());
-									skinPatternRoot.addProperty("width", skinPattern.width());
-									skinPatternRoot.addProperty("height", skinPattern.height());
-								}));
-							}
-						}
-						case CloudItemBooster itemBooster -> {
-							itemRoot.addProperty("booster_type",
-								ReflectionUtil.<BoosterType>getField(itemBooster, "type").name().toLowerCase(Locale.ROOT)
-							);
-							itemRoot.addProperty("minutes",
-								ReflectionUtil.<Integer>getField(itemBooster, "minutes")
-							);
-							itemRoot.addProperty("multiplier",
-								ReflectionUtil.<Integer>getField(itemBooster, "multiplier")
-							);
-						}
-						default -> {
-						}
-					}
-				}));
+			if (item.getSkin() != 0f) {
+				itemRoot.addProperty("skin_id", item.getSkin());
 			}
-		}));
+			itemRoot.addProperty("type", item.getItemType().name().toLowerCase(Locale.ROOT));
+
+			if (item instanceof ActivatedCloudItem<?> activatedItem) {
+				activatedItem.getActivationAchievement().ifPresent(achievement ->
+					itemRoot.addProperty("activation_achievement", achievement.getId())
+				);
+			}
+
+			switch (item) {
+				case CloudItemArmour itemArmour -> {
+					itemRoot.addProperty("nation", itemArmour.getNation().getTag());
+				}
+				case CloudItemCase itemCase -> {
+					itemRoot.addProperty("case_key", itemCase.key.getId());
+				}
+				case CloudItemGun itemGun -> {
+					if (itemGun.hasPatternSkin()) {
+						SkinPattern skinPattern = itemGun.getPatternSkin();
+						assert skinPattern != null;
+
+						itemRoot.add("pattern_skin", Util.apply(new JsonObject(), skinPatternRoot -> {
+							skinPatternRoot.addProperty("name", skinPattern.name());
+							skinPatternRoot.addProperty("width", skinPattern.width());
+							skinPatternRoot.addProperty("height", skinPattern.height());
+						}));
+					}
+				}
+				case CloudItemBooster itemBooster -> {
+					itemRoot.addProperty("booster_type",
+						ReflectionUtil.<BoosterType>getField(itemBooster, "type").name().toLowerCase(Locale.ROOT)
+					);
+					itemRoot.addProperty("minutes",
+						ReflectionUtil.<Integer>getField(itemBooster, "minutes")
+					);
+					itemRoot.addProperty("multiplier",
+						ReflectionUtil.<Integer>getField(itemBooster, "multiplier")
+					);
+				}
+				default -> {
+				}
+			}
+
+			itemsRoot.add(Integer.toString(item.getId()), itemRoot);
+		}
+
+		root.add("items", itemsRoot);
 
 		String jsonStr = Util.gson(false).toJson(root);
 		byte[] jsonHash = MessageDigest.getInstance("MD5").digest(jsonStr.getBytes(StandardCharsets.UTF_8));

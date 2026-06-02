@@ -45,7 +45,7 @@ public final class BfCloudPacketHandlers {
 	private BfCloudPacketHandlers() {
 	}
 
-	public static void register() {
+	public static void registerForApi() {
 		registerPacketHandler(PacketChatMessageFromCloud.class, BfCloudPacketHandlers::chatMessageFromCloud);
 		registerPacketHandler(PacketClientMessagePopup.class, BfCloudPacketHandlers::clientMessagePopup);
 		registerPacketHandler(PacketDailyReward.class, BfCloudPacketHandlers::dailyReward);

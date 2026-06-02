@@ -23,12 +23,6 @@ public class ByteBufWriter extends Writer {
 	}
 
 	@Override
-	public void write(int c) {
-		char[] a = {(char) c};
-		buf.writeCharSequence(CharBuffer.wrap(a), charset);
-	}
-
-	@Override
 	public void write(@NotNull String str) {
 		Objects.requireNonNull(str);
 		buf.writeCharSequence(str, charset);
