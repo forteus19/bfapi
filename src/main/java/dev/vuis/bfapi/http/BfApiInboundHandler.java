@@ -7,7 +7,6 @@ import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.BfPlayerInventory;
 import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
-import dev.vuis.bfapi.data.MinecraftProfileData;
 import dev.vuis.bfapi.data.Serialization;
 import dev.vuis.bfapi.util.Responses;
 import dev.vuis.bfapi.util.Util;
@@ -27,7 +26,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import it.unimi.dsi.fastutil.Pair;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZonedDateTime;
@@ -718,53 +716,21 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 	}
 
 	private static Pair<UUID, @Nullable FullHttpResponse> playerUuidFromParams(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
-		boolean hasUuid = qs.parameters().containsKey("uuid");
-		boolean hasName = qs.parameters().containsKey("name");
-		if (!(hasUuid || hasName)) {
+		if (!qs.parameters().containsKey("uuid")) {
 			return Pair.of(null, Responses.error(
 				ctx, msg, HttpResponseStatus.BAD_REQUEST,
-				"missing_uuid_or_name"
-			));
-		}
-		if (hasUuid && hasName) {
-			return Pair.of(null, Responses.error(
-				ctx, msg, HttpResponseStatus.BAD_REQUEST,
-				"both_uuid_and_name"
+				"missing_uuid"
 			));
 		}
 
-		UUID uuid;
-		if (hasUuid) {
-			Optional<UUID> uuidParseResult = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
-			if (uuidParseResult.isEmpty()) {
-				return Pair.of(null, Responses.error(
-					ctx, msg, HttpResponseStatus.BAD_REQUEST,
-					"invalid_uuid"
-				));
-			}
-
-			uuid = uuidParseResult.orElseThrow();
-		} else {
-			Optional<MinecraftProfileData> profile;
-			try {
-				profile = MinecraftProfileData.retrieveByName(qs.parameters().get("name").getFirst());
-			} catch (IOException | InterruptedException e) {
-				return Pair.of(null, Responses.error(
-					ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-					"profile_unavailable"
-				));
-			}
-			if (profile.isEmpty()) {
-				return Pair.of(null, Responses.error(
-					ctx, msg, HttpResponseStatus.NOT_FOUND,
-					"profile_not_found"
-				));
-			}
-
-			uuid = profile.orElseThrow().uuid();
+		Optional<UUID> uuidParseResult = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
+		if (uuidParseResult.isEmpty()) {
+			return Pair.of(null, Responses.error(
+				ctx, msg, HttpResponseStatus.BAD_REQUEST,
+				"invalid_uuid"
+			));
 		}
-
-		return Pair.of(uuid, null);
+		return Pair.of(uuidParseResult.orElseThrow(), null);
 	}
 
 	private static Pair<Set<UUID>, @Nullable FullHttpResponse> parseUuidSet(ChannelHandlerContext ctx, FullHttpRequest msg) {
