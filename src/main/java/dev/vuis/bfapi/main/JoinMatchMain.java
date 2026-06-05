@@ -9,7 +9,6 @@ import dev.vuis.bfapi.data.BfApiConfig;
 import dev.vuis.bfapi.util.AuthUtil;
 import java.net.InetSocketAddress;
 import java.util.UUID;
-import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import net.lenni0451.commons.httpclient.HttpClient;
@@ -47,9 +46,10 @@ public final class JoinMatchMain {
 		log.info("enter match UUID:");
 		matchUuid = UUID.fromString(IO.readln());
 
+		BfCloudPacketHandlers.registerInfo();
 		BfCloudPacketHandlers.registerPacketHandler(PacketMMJoinServer.class, JoinMatchMain::handleJoinServerPacket);
 
-		@Cleanup
+		@SuppressWarnings("resource")
 		BfConnection connection = new BfConnection(
 			config.getBfCloudAddress(),
 			config.getBfVersion(),

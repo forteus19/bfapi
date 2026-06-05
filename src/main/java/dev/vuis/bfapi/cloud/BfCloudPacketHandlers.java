@@ -45,11 +45,15 @@ public final class BfCloudPacketHandlers {
 	private BfCloudPacketHandlers() {
 	}
 
-	public static void registerForApi() {
+	public static void registerInfo() {
 		registerPacketHandler(PacketChatMessageFromCloud.class, BfCloudPacketHandlers::chatMessageFromCloud);
 		registerPacketHandler(PacketClientMessagePopup.class, BfCloudPacketHandlers::clientMessagePopup);
 		registerPacketHandler(PacketDailyReward.class, BfCloudPacketHandlers::dailyReward);
 		registerPacketHandler(PacketNotificationFromCloud.class, BfCloudPacketHandlers::notificationFromCloud);
+		registerPacketHandler(PacketServerNotification.class, BfCloudPacketHandlers::serverNotification);
+	}
+
+	public static void registerApi() {
 		registerPacketHandler(PacketRequestedClanData.class, BfCloudPacketHandlers::requestedClanData);
 		registerPacketHandler(PacketRequestedCloudData.class, BfCloudPacketHandlers::requestedCloudData);
 		registerPacketHandler(PacketRequestedInventory.class, BfCloudPacketHandlers::requestedInventory);
@@ -57,7 +61,6 @@ public final class BfCloudPacketHandlers {
 		registerPacketHandler(PacketRequestedPlayerData.class, BfCloudPacketHandlers::requestedPlayerData);
 		registerPacketHandler(PacketRequestedPlayerDataSet.class, BfCloudPacketHandlers::requestedPlayerDataSet);
 		registerPacketHandler(PacketRequestedPlayerStatusSet.class, BfCloudPacketHandlers::requestedPlayerStatusSet);
-		registerPacketHandler(PacketServerNotification.class, BfCloudPacketHandlers::serverNotification);
 	}
 
 	public static <P extends IPacket> void registerPacketHandler(Class<P> packetClass, IPacketHandlerFunction<P, BfConnection> packetHandler) {

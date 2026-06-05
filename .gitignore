@@ -41,7 +41,7 @@ bin/
 ### Mac OS ###
 .DS_Store
 
-/registry.json
+/registry_*.json
 /*.txt
 *.env
 /bfapi_auth_tokens.json

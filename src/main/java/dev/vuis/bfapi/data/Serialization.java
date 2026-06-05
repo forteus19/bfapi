@@ -1,23 +1,18 @@
 package dev.vuis.bfapi.data;
 
 import com.boehmod.bflib.cloud.common.AbstractClanData;
-import com.boehmod.bflib.cloud.common.CloudRegistry;
 import com.boehmod.bflib.cloud.common.MatchData;
 import com.boehmod.bflib.cloud.common.MatchSettings;
-import com.boehmod.bflib.cloud.common.item.CloudItem;
-import com.boehmod.bflib.cloud.common.item.CloudItemStack;
 import com.boehmod.bflib.cloud.common.player.challenge.Challenge;
 import com.boehmod.bflib.cloud.common.player.challenge.ItemKillChallenge;
 import com.boehmod.bflib.cloud.common.player.challenge.KillCountChallenge;
 import com.boehmod.bflib.cloud.common.player.challenge.WeaponTypeKillChallenge;
 import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
 import com.google.gson.stream.JsonWriter;
-import dev.vuis.bfapi.cloud.BfPlayerInventory;
 import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.util.Util;
 import java.io.IOException;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 import org.jetbrains.annotations.NotNull;
@@ -77,29 +72,6 @@ public final class Serialization {
 		return w;
 	}
 
-	public static @NotNull JsonWriter cloudItemStack(@NotNull JsonWriter w, @NotNull CloudItemStack stack, @NotNull CloudItem<?> item, boolean includeUuid, boolean includeDetails) throws IOException {
-		w.beginObject();
-
-		if (includeUuid) {
-			w.name("uuid").value(Util.getBase64Uuid(stack.getUUID()));
-		}
-		w.name("id").value(stack.getItemId());
-		if (includeDetails) {
-			w.name("display_name").value(item.getDisplayName());
-			w.name("rarity").value(item.getRarity().name().toLowerCase(Locale.ROOT));
-			w.name("type").value(item.getItemType().name().toLowerCase(Locale.ROOT));
-		}
-		w.name("mint").value(stack.getMint());
-		Optional<String> nameTag = stack.getNameTag();
-		if (nameTag.isPresent()) {
-			w.name("name_tag").value(nameTag.orElseThrow());
-		}
-
-		w.endObject();
-
-		return w;
-	}
-
 	public static @NotNull JsonWriter matchData(@NotNull JsonWriter w, @NotNull MatchData matchData, @Nullable BfDataCache dataCache) throws IOException {
 		w.beginObject();
 
@@ -121,29 +93,6 @@ public final class Serialization {
 			w.endObject();
 		}
 		w.endArray();
-
-		w.endObject();
-
-		return w;
-	}
-
-	public static @NotNull JsonWriter playerInventory(@NotNull JsonWriter w, @NotNull BfPlayerInventory inventory, @NotNull CloudRegistry registry, boolean includeUuid, boolean includeDetails, @Nullable Consumer<JsonWriter> extra) throws IOException {
-		w.beginObject();
-
-		w.name("inventory").beginArray();
-		for (CloudItemStack itemStack : inventory.getItems()) {
-			CloudItem<?> item = itemStack.getCloudItem(registry);
-			assert item != null;
-
-			if (!item.isDefault()) {
-				cloudItemStack(w, itemStack, item, includeUuid, includeDetails);
-			}
-		}
-		w.endArray();
-
-		if (extra != null) {
-			extra.accept(w);
-		}
 
 		w.endObject();
 

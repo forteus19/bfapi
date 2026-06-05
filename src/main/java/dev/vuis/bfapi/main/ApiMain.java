@@ -70,7 +70,8 @@ public final class ApiMain {
 		BfApiInboundHandler inboundHandler = new BfApiInboundHandler(config.getBfUcdRefreshSecret());
 		startHttpServer(inboundHandler, config.getApiPort());
 
-		BfCloudPacketHandlers.registerForApi();
+		BfCloudPacketHandlers.registerInfo();
+		BfCloudPacketHandlers.registerApi();
 		if (config.isBfScrapeFriends()) {
 			FriendScraper.registerPacketHandlers();
 		}

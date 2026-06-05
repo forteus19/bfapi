@@ -407,8 +407,8 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		boolean finalIncludeDetails = includeDetails;
 		FullHttpResponse response = Responses.json(
 			ctx, msg, HttpResponseStatus.OK,
-			w -> Serialization.playerInventory(
-				w, data.value(), connection.registry, finalIncludeUuid, finalIncludeDetails,
+			w -> data.value().serialize(
+				w, connection.registry, finalIncludeUuid, finalIncludeDetails,
 				Util.unchecked(w2 -> {
 					w2.name("player").beginObject();
 					Serialization.playerStub(w2, connection.dataCache, uuid);
