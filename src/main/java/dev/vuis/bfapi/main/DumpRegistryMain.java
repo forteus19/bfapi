@@ -1,26 +1,16 @@
 package dev.vuis.bfapi.main;
 
 import com.boehmod.bflib.cloud.common.CloudRegistry;
-import com.boehmod.bflib.cloud.common.item.ActivatedCloudItem;
 import com.boehmod.bflib.cloud.common.item.CloudItem;
 import com.boehmod.bflib.cloud.common.item.CloudItemType;
 import com.boehmod.bflib.cloud.common.item.CloudItems;
-import com.boehmod.bflib.cloud.common.item.pattern.SkinPattern;
-import com.boehmod.bflib.cloud.common.item.types.CloudItemArmour;
-import com.boehmod.bflib.cloud.common.item.types.CloudItemBooster;
-import com.boehmod.bflib.cloud.common.item.types.CloudItemCase;
-import com.boehmod.bflib.cloud.common.item.types.CloudItemGun;
-import com.boehmod.bflib.cloud.common.player.BoosterType;
 import com.boehmod.bflib.cloud.common.player.achievement.CloudAchievement;
 import com.boehmod.bflib.cloud.common.player.achievement.CloudAchievements;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import dev.vuis.bfapi.util.ReflectionUtil;
 import dev.vuis.bfapi.util.Util;
 import java.io.BufferedWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Locale;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -54,7 +44,8 @@ public final class DumpRegistryMain {
 		JsonObject itemsRoot = new JsonObject();
 
 		for (CloudItem<?> item : registry.getItems()) {
-			JsonArray itemRoot = new JsonArray();
+			JsonObject itemRoot = new JsonObject();
+//			JsonArray itemRoot = new JsonArray();
 
 			CloudItemType type = item.getItemType();
 			String name;
@@ -64,9 +55,13 @@ public final class DumpRegistryMain {
 				name = item.getName();
 			}
 
-			itemRoot.add(name);
-			itemRoot.add(item.getRarity().ordinal());
-			itemRoot.add(type.ordinal());
+			itemRoot.addProperty("name", name);
+			itemRoot.addProperty("rarity", item.getRarity().name());
+			itemRoot.addProperty("type", type.name());
+
+//			itemRoot.add(name);
+//			itemRoot.add(item.getRarity().ordinal());
+//			itemRoot.add(type.ordinal());
 
 //			if (item.getCollection() != null) {
 //				itemRoot.addProperty("collection", item.getCollection());
@@ -115,7 +110,7 @@ public final class DumpRegistryMain {
 		}
 
 		try (BufferedWriter writer = Files.newBufferedWriter(Path.of("registry_items.json"))) {
-			Util.gson(false).toJson(itemsRoot, writer);
+			Util.gson(true).toJson(itemsRoot, writer);
 		}
 	}
 }

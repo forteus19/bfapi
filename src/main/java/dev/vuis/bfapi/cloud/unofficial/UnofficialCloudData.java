@@ -33,8 +33,8 @@ import org.jetbrains.annotations.NotNull;
 @Slf4j
 @RequiredArgsConstructor
 public final class UnofficialCloudData {
-	private static final int REQUEST_CHUNK_SIZE = 32;
-	private static final Duration REQUEST_PADDING_TIME = Duration.ofSeconds(2);
+	private static final int REQUEST_CHUNK_SIZE = 6;
+	private static final Duration REQUEST_PADDING_TIME = Duration.ofSeconds(1);
 
 	private final Supplier<Set<UUID>> playerListLoader;
 	private final BfDataCache dataCache;

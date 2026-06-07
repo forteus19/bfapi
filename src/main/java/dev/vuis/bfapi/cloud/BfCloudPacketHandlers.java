@@ -53,7 +53,7 @@ public final class BfCloudPacketHandlers {
 		registerPacketHandler(PacketServerNotification.class, BfCloudPacketHandlers::serverNotification);
 	}
 
-	public static void registerApi() {
+	public static void registerData() {
 		registerPacketHandler(PacketRequestedClanData.class, BfCloudPacketHandlers::requestedClanData);
 		registerPacketHandler(PacketRequestedCloudData.class, BfCloudPacketHandlers::requestedCloudData);
 		registerPacketHandler(PacketRequestedInventory.class, BfCloudPacketHandlers::requestedInventory);

@@ -36,6 +36,8 @@ dependencies {
     implementation("it.unimi.dsi:fastutil:8.5.18")
     implementation("net.raphimc:MinecraftAuth:5.0.0")
 
+//    runtimeOnly("org.xerial:sqlite-jdbc:3.53.1.0")
+
     compileOnly("org.projectlombok:lombok:1.18.42")
     annotationProcessor("org.projectlombok:lombok:1.18.42")
 

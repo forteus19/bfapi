@@ -71,7 +71,7 @@ public final class ApiMain {
 		startHttpServer(inboundHandler, config.getApiPort());
 
 		BfCloudPacketHandlers.registerInfo();
-		BfCloudPacketHandlers.registerApi();
+		BfCloudPacketHandlers.registerData();
 		if (config.isBfScrapeFriends()) {
 			FriendScraper.registerPacketHandlers();
 		}
@@ -106,7 +106,7 @@ public final class ApiMain {
 		}
 	}
 
-	private static @NotNull Set<UUID> loadPlayerList(@Nullable Path playerListPath) {
+	static @NotNull Set<UUID> loadPlayerList(@Nullable Path playerListPath) {
 		if (playerListPath != null) {
 			try {
 				log.info("loading player list");

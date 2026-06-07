@@ -41,7 +41,10 @@ bin/
 ### Mac OS ###
 .DS_Store
 
+/src/main/java/dev/vuis/bfapi/main/DumpArmoryMain.java
+
 /registry_*.json
 /*.txt
 *.env
 /bfapi_auth_tokens.json
+/*.db*
