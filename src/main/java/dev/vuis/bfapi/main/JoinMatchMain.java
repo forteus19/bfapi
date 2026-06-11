@@ -46,6 +46,7 @@ public final class JoinMatchMain {
 		log.info("enter match UUID:");
 		matchUuid = UUID.fromString(IO.readln());
 
+		BfCloudPacketHandlers.registerPrimitive();
 		BfCloudPacketHandlers.registerInfo();
 		BfCloudPacketHandlers.registerPacketHandler(PacketMMJoinServer.class, JoinMatchMain::handleJoinServerPacket);
 
@@ -55,7 +56,9 @@ public final class JoinMatchMain {
 			config.getBfVersion(),
 			config.getBfVersionHash(),
 			config.getBfHardwareId(),
-			authManager
+			authManager,
+			config.getHttpUserAgent(),
+			_ -> null
 		);
 		connection.connect();
 

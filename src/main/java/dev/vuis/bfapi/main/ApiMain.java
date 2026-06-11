@@ -1,7 +1,9 @@
 package dev.vuis.bfapi.main;
 
 import com.boehmod.bflib.cloud.connection.ConnectionStatus;
-import dev.vuis.bfapi.cloud.BfCloudData;
+import com.google.common.collect.ImmutableMap;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import dev.vuis.bfapi.cloud.BfCloudPacketHandlers;
 import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
@@ -10,22 +12,24 @@ import dev.vuis.bfapi.http.BfApiChannelInitializer;
 import dev.vuis.bfapi.http.BfApiInboundHandler;
 import dev.vuis.bfapi.util.AuthUtil;
 import dev.vuis.bfapi.util.FriendScraper;
+import dev.vuis.bfapi.util.Util;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
@@ -39,9 +43,10 @@ import org.jetbrains.annotations.Nullable;
 
 @Slf4j
 public final class ApiMain {
-	private static final ScheduledExecutorService refreshExecutor = Executors.newSingleThreadScheduledExecutor();
-	private static @Nullable ScheduledFuture<?> cloudDataRefreshFuture = null;
 	private static boolean startupUcdRefresh = false;
+
+	private static final ScheduledExecutorService REFRESH_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
+	private static ScheduledFuture<?> cloudDataRefreshFuture = null;
 
 	private ApiMain() {
 	}
@@ -49,6 +54,13 @@ public final class ApiMain {
 	@SneakyThrows
 	static void main() {
 		BfApiConfig config = BfApiConfig.instance();
+
+		byte[] hardwareId = config.getBfHardwareId();
+		if (hardwareId.length != 32) {
+			log.warn("hardware ID is not 32 bytes (found {} bytes)", hardwareId.length);
+			log.warn("press enter to continue");
+			IO.readln();
+		}
 
 		HttpClient authHttpClient = MinecraftAuth.createHttpClient(config.getHttpUserAgent());
 		JavaAuthManager authManager = AuthUtil.tryLoadAuthJson(authHttpClient, config.getTokensJsonPath());
@@ -70,6 +82,7 @@ public final class ApiMain {
 		BfApiInboundHandler inboundHandler = new BfApiInboundHandler(config.getBfUcdRefreshSecret());
 		startHttpServer(inboundHandler, config.getApiPort());
 
+		BfCloudPacketHandlers.registerPrimitive();
 		BfCloudPacketHandlers.registerInfo();
 		BfCloudPacketHandlers.registerData();
 		if (config.isBfScrapeFriends()) {
@@ -82,7 +95,9 @@ public final class ApiMain {
 			config.getBfVersion(),
 			config.getBfVersionHash(),
 			config.getBfHardwareId(),
-			authManager
+			authManager,
+			config.getHttpUserAgent(),
+			createCommandUserRetriever(config)
 		);
 		connection.connect();
 
@@ -104,6 +119,28 @@ public final class ApiMain {
 			}
 		} catch (Exception _) {
 		}
+	}
+
+	private static Function<String, UUID> createCommandUserRetriever(BfApiConfig config) throws IOException {
+		Path commandUsersPath = config.getBfCommandUsersPath();
+
+		if (commandUsersPath == null) {
+			return _ -> null;
+		}
+
+		log.info("reading command users");
+
+		JsonObject commandUsersRoot;
+		try (BufferedReader reader = Files.newBufferedReader(commandUsersPath)) {
+			commandUsersRoot = Util.COMPACT_GSON.fromJson(reader, JsonObject.class);
+		}
+
+		ImmutableMap.Builder<String, UUID> commandUsers = ImmutableMap.builderWithExpectedSize(commandUsersRoot.size());
+		for (Map.Entry<String, JsonElement> entry : commandUsersRoot.entrySet()) {
+			commandUsers.put(entry.getKey(), UUID.fromString(entry.getValue().getAsString()));
+		}
+
+		return commandUsers.buildOrThrow()::get;
 	}
 
 	static @NotNull Set<UUID> loadPlayerList(@Nullable Path playerListPath) {
@@ -143,42 +180,18 @@ public final class ApiMain {
 						startupUcdRefresh = true;
 					}
 
-					cloudDataRefreshFuture = refreshExecutor.scheduleAtFixedRate(
-						() -> refreshCloudData(connection),
-						0, 60, TimeUnit.SECONDS
+					cloudDataRefreshFuture = REFRESH_EXECUTOR.scheduleAtFixedRate(
+						connection.dataCache.cloudData::request,
+						0, 30, TimeUnit.SECONDS
 					);
 				}
 			}
 			case CLOSED -> {
 				if (cloudDataRefreshFuture != null) {
-					cloudDataRefreshFuture.cancel(false);
+					cloudDataRefreshFuture.cancel(true);
 					cloudDataRefreshFuture = null;
 				}
 			}
 		}
-	}
-
-	private static void refreshCloudData(BfConnection connection) {
-		if (!connection.isConnectedAndVerified()) {
-			return;
-		}
-
-		BfCloudData cloudData;
-		try {
-			cloudData = connection.dataCache.cloudData.get().get(10, TimeUnit.SECONDS).value();
-		} catch (InterruptedException | TimeoutException e) {
-			return;
-		} catch (ExecutionException e) {
-			throw new RuntimeException(e);
-		}
-
-		connection.dataCache.playerData.request(
-			cloudData.playerScores().stream().map(ObjectIntImmutablePair::left).collect(Collectors.toUnmodifiableSet()),
-			true
-		);
-		connection.dataCache.clanData.request(
-			cloudData.clanScores().stream().map(ObjectIntImmutablePair::left).collect(Collectors.toUnmodifiableSet()),
-			true
-		);
 	}
 }

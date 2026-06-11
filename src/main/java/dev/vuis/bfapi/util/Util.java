@@ -1,13 +1,10 @@
 package dev.vuis.bfapi.util;
 
-import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.boehmod.bflib.cloud.common.player.PlayerRank;
 import com.google.gson.FormattingStyle;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.vuis.bfapi.cloud.BfPlayerData;
-import dev.vuis.bfapi.cloud.cache.BfDataCache;
-import dev.vuis.bfapi.util.cache.ExpiryHolder;
 import java.net.InetSocketAddress;
 import java.net.URLEncoder;
 import java.nio.ByteBuffer;
@@ -151,32 +148,6 @@ public final class Util {
 		} else {
 			throw new IllegalArgumentException("Invalid InetSocketAddress");
 		}
-	}
-
-	public static @NotNull String getCachedPlayerName(@Nullable BfDataCache dataCache, @NotNull UUID uuid) {
-		String name = "Unknown";
-
-		if (dataCache != null) {
-			BfPlayerData playerData = Util.ifNonNull(dataCache.playerData.getIfPresent(uuid), ExpiryHolder::value);
-			if (playerData != null) {
-				name = playerData.getUsername();
-			}
-		}
-
-		return name;
-	}
-
-	public static @NotNull String getCachedClanName(@Nullable BfDataCache dataCache, @NotNull UUID uuid) {
-		String name = "Unknown";
-
-		if (dataCache != null) {
-			AbstractClanData playerData = Util.ifNonNull(dataCache.clanData.getIfPresent(uuid), ExpiryHolder::value);
-			if (playerData != null) {
-				name = playerData.getName();
-			}
-		}
-
-		return name;
 	}
 
 	public static int getTotalExp(int prestige, int exp) {

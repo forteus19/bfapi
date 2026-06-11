@@ -31,6 +31,8 @@ public final class BfApiConfig {
 	@Getter
 	private final byte @NotNull [] bfHardwareId;
 	@Getter
+	private final @Nullable Path bfCommandUsersPath;
+	@Getter
 	private final @Nullable Path bfPlayerListPath;
 	@Getter
 	private final boolean bfUcdRefreshOnStartup;
@@ -55,6 +57,7 @@ public final class BfApiConfig {
 		bfVersion = getOrThrow("BF_VERSION");
 		bfVersionHash = getOrThrow("BF_VERSION_HASH");
 		bfHardwareId = getOrThrow("BF_HARDWARE_ID", Util::parseHexArray);
+		bfCommandUsersPath = getOrNull("BF_COMMAND_USERS_PATH", Path::of);
 		bfPlayerListPath = getOrNull("BF_PLAYER_LIST_PATH", Path::of);
 		bfUcdRefreshOnStartup = getOrDefault("BF_UCD_REFRESH_ON_STARTUP", true);
 		bfUcdRefreshSecret = getOrNull("BF_UCD_REFRESH_SECRET");

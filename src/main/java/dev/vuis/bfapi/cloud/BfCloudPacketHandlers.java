@@ -22,27 +22,29 @@ import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerDataSet;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerStatusSet;
 import com.boehmod.bflib.cloud.packet.common.server.PacketServerNotification;
+import com.boehmod.bflib.cloud.packet.primitives.CloudHeartBeatPacket;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSyntaxException;
-import dev.vuis.bfapi.data.MinecraftProfileData;
+import dev.vuis.bfapi.util.JsonUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
-import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public final class BfCloudPacketHandlers {
 	private BfCloudPacketHandlers() {
+	}
+
+	public static void registerPrimitive() {
+		registerPacketHandler(CloudHeartBeatPacket.class, BfCloudPacketHandlers::cloudHeartBeat);
 	}
 
 	public static void registerInfo() {
@@ -73,6 +75,10 @@ public final class BfCloudPacketHandlers {
 
 	private static void clientMessagePopup(PacketClientMessagePopup packet, BfConnection connection) {
 		log.info("cloud popup message:\n{}\n{}\n{}", packet.type(), packet.title(), packet.message());
+	}
+
+	private static void cloudHeartBeat(CloudHeartBeatPacket packet, BfConnection connection) {
+		connection.cloudHeartbeat();
 	}
 
 	private static void dailyReward(PacketDailyReward packet, BfConnection connection) {
@@ -131,7 +137,7 @@ public final class BfCloudPacketHandlers {
 	}
 
 	private static void requestedItemDefault(PacketRequestedItemDefault packet, BfConnection connection) {
-		connection.dataCache.itemDefault.complete(packet.uuid(), packet.itemStacks());
+		connection.dataCache.playerInventoryDefaults.complete(packet.uuid(), packet.itemStacks());
 	}
 
 	private static void requestedPlayerData(PacketRequestedPlayerData packet, BfConnection connection) {
@@ -158,81 +164,46 @@ public final class BfCloudPacketHandlers {
 		if (!contentsElement.isJsonObject()) {
 			return;
 		}
-		JsonObject contentsObject = contentsElement.getAsJsonObject();
+		JsonObject contents = contentsElement.getAsJsonObject();
 
-		JsonElement translateElement = contentsObject.get("translate");
-		if (translateElement == null || !translateElement.isJsonPrimitive()) {
-			return;
-		}
-		JsonPrimitive translatePrimitive = translateElement.getAsJsonPrimitive();
-		if (!translatePrimitive.isString()) {
-			return;
-		}
-		String translate = translatePrimitive.getAsString();
-
-		if (!translate.equals("bf.cloud.notification.friends.poke.from")) {
+		String translate = JsonUtil.getString(contents, "translate");
+		if (translate == null || !translate.equals("bf.cloud.notification.friends.poke.from")) {
 			return;
 		}
 
-		JsonElement withElement = contentsObject.get("with");
-		if (withElement == null || !withElement.isJsonArray()) {
-			return;
-		}
-		JsonArray withArray = withElement.getAsJsonArray();
-
-		if (withArray.size() != 2) {
+		JsonArray with = JsonUtil.getArray(contents, "with");
+		if (with == null || with.size() != 2) {
 			return;
 		}
 
-		JsonElement senderElement = withArray.get(0);
-		if (!senderElement.isJsonObject()) {
+		JsonObject senderObject = JsonUtil.getObject(with.get(0));
+		if (senderObject == null) {
 			return;
 		}
-		JsonObject senderObject = senderElement.getAsJsonObject();
+		String senderName = JsonUtil.getString(senderObject, "text");
+		if (senderName == null) {
+			return;
+		}
+		UUID senderUuid = connection.getCommandUserUuid(senderName);
+		if (senderUuid == null) {
+			return;
+		}
 
-		JsonElement senderNameElement = senderObject.get("text");
-		if (senderNameElement == null || !senderNameElement.isJsonPrimitive()) {
+		JsonObject messageObject = JsonUtil.getObject(with.get(1));
+		if (messageObject == null) {
 			return;
 		}
-		JsonPrimitive senderNamePrimitive = senderNameElement.getAsJsonPrimitive();
-		if (!senderNamePrimitive.isString()) {
+		String text = JsonUtil.getString(messageObject, "text");
+		if (text == null) {
 			return;
 		}
-		String senderName = senderNamePrimitive.getAsString();
-
-		Optional<MinecraftProfileData> retrievedSenderProfile;
-		try {
-			retrievedSenderProfile = MinecraftProfileData.retrieveByName(senderName);
-		} catch (IOException | InterruptedException e) {
-			return;
-		}
-		if (retrievedSenderProfile.isEmpty()) {
-			return;
-		}
-		MinecraftProfileData senderProfile = retrievedSenderProfile.orElseThrow();
-
-		JsonElement messageElement = withArray.get(1);
-		if (!messageElement.isJsonObject()) {
-			return;
-		}
-		JsonObject messageObject = messageElement.getAsJsonObject();
-
-		JsonElement textElement = messageObject.get("text");
-		if (textElement == null || !textElement.isJsonPrimitive()) {
-			return;
-		}
-		JsonPrimitive textPrimitive = textElement.getAsJsonPrimitive();
-		if (!textPrimitive.isString()) {
-			return;
-		}
-		String text = textPrimitive.getAsString();
 
 		log.info("{} running command: {}", senderName, text);
 
 		String response = connection.handleCommand(text);
 		if (response != null) {
 			try {
-				connection.sendPacket(new PacketFriendPoke(senderProfile.uuid(), response));
+				connection.sendPacket(new PacketFriendPoke(senderUuid, response));
 			} catch (Exception _) {
 			}
 		}

@@ -1,15 +1,15 @@
 <component name="InspectionProjectProfileManager">
   <profile version="1.0">
     <option name="myName" value="Project Default" />
-    <inspection_tool class="ExtractMethodRecommender" enabled="true" level="WARNING" enabled_by_default="true">
-      <option name="minLength" value="508" />
-    </inspection_tool>
+    <inspection_tool class="BooleanMethodIsAlwaysInverted" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="ExtractMethodRecommender" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="GrazieInspection" enabled="false" level="GRAMMAR_ERROR" enabled_by_default="false" />
     <inspection_tool class="LanguageDetectionInspection" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="OptionalAssignedToNull" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="WARN_ON_COMPARISON" value="false" />
     </inspection_tool>
     <inspection_tool class="RedundantLabeledSwitchRuleCodeBlock" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SameParameterValue" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="SpellCheckingInspection" enabled="false" level="TYPO" enabled_by_default="false">
       <option name="processCode" value="true" />
       <option name="processLiterals" value="true" />

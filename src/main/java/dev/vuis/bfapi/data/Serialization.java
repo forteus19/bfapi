@@ -9,7 +9,7 @@ import com.boehmod.bflib.cloud.common.player.challenge.KillCountChallenge;
 import com.boehmod.bflib.cloud.common.player.challenge.WeaponTypeKillChallenge;
 import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
 import com.google.gson.stream.JsonWriter;
-import dev.vuis.bfapi.cloud.cache.BfDataCache;
+import dev.vuis.bfapi.cloud.BfDataCache;
 import dev.vuis.bfapi.util.Util;
 import java.io.IOException;
 import java.util.Locale;
@@ -52,7 +52,7 @@ public final class Serialization {
 		return w;
 	}
 
-	public static @NotNull JsonWriter clan(@NotNull JsonWriter w, @NotNull AbstractClanData clan, @Nullable BfDataCache dataCache) throws IOException {
+	public static @NotNull JsonWriter clan(@NotNull JsonWriter w, @NotNull AbstractClanData clan, @NotNull BfDataCache dataCache) throws IOException {
 		w.beginObject();
 
 		w.name("uuid").value(clan.getClanId().toString());
@@ -72,7 +72,7 @@ public final class Serialization {
 		return w;
 	}
 
-	public static @NotNull JsonWriter matchData(@NotNull JsonWriter w, @NotNull MatchData matchData, @Nullable BfDataCache dataCache) throws IOException {
+	public static @NotNull JsonWriter matchData(@NotNull JsonWriter w, @NotNull MatchData matchData, @NotNull BfDataCache dataCache) throws IOException {
 		w.beginObject();
 
 		w.name("uuid").value(matchData.getUUID().toString());
@@ -99,7 +99,7 @@ public final class Serialization {
 		return w;
 	}
 
-	public static @NotNull JsonWriter playerStatus(@NotNull JsonWriter w, @NotNull PlayerStatus status, @Nullable BfDataCache dataCache, @Nullable Consumer<JsonWriter> extra) throws IOException {
+	public static @NotNull JsonWriter playerStatus(@NotNull JsonWriter w, @NotNull PlayerStatus status, @NotNull BfDataCache dataCache, @Nullable Consumer<JsonWriter> extra) throws IOException {
 		w.beginObject();
 
 		w.name("online").value(status.getOnlineStatus().isOnline());
@@ -122,19 +122,21 @@ public final class Serialization {
 		return w;
 	}
 
-	public static @NotNull JsonWriter playerStub(@NotNull JsonWriter w, @Nullable BfDataCache dataCache, @NotNull UUID uuid) throws IOException {
-		namedStub(w, uuid, Util.getCachedPlayerName(dataCache, uuid));
+	public static @NotNull JsonWriter playerStub(@NotNull JsonWriter w, @NotNull BfDataCache dataCache, @NotNull UUID uuid) throws IOException {
+		namedStub(w, uuid, dataCache.getCachedPlayerName(uuid));
 		return w;
 	}
 
-	public static @NotNull JsonWriter clanStub(@NotNull JsonWriter w, @Nullable BfDataCache dataCache, @NotNull UUID uuid) throws IOException {
-		namedStub(w, uuid, Util.getCachedClanName(dataCache, uuid));
+	public static @NotNull JsonWriter clanStub(@NotNull JsonWriter w, @NotNull BfDataCache dataCache, @NotNull UUID uuid) throws IOException {
+		namedStub(w, uuid, dataCache.getCachedClanName(uuid));
 		return w;
 	}
 
-	public static @NotNull JsonWriter namedStub(@NotNull JsonWriter w, @NotNull UUID uuid, @NotNull String name) throws IOException {
+	public static @NotNull JsonWriter namedStub(@NotNull JsonWriter w, @NotNull UUID uuid, @Nullable String name) throws IOException {
 		w.name("uuid").value(uuid.toString());
-		w.name("name").value(name);
+		if (name != null) {
+			w.name("name").value(name);
+		}
 		return w;
 	}
 }

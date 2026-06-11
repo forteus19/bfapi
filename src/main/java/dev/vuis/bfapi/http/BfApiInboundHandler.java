@@ -22,16 +22,14 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import it.unimi.dsi.fastutil.Pair;
+import it.unimi.dsi.fastutil.booleans.BooleanObjectPair;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -46,13 +44,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.Nullable;
 
 @Slf4j
 @RequiredArgsConstructor
 @ChannelHandler.Sharable
 public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
-	private static final int MAX_BULK_SIZE = 128;
+	private static final int MAX_BULK_SIZE = 48;
 
 	public final AtomicReference<BfConnection> connectionReference = new AtomicReference<>();
 	public final AtomicReference<UnofficialCloudData> ucdReference = new AtomicReference<>();
@@ -65,28 +62,24 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		String path = qs.path();
 		boolean keepAlive = HttpUtil.isKeepAlive(msg);
 
-		FullHttpResponse response = switch (path) {
+		HttpResponse response = switch (path) {
 			case "/api/v1/clan_data" -> clanData(ctx, msg, qs);
 			case "/api/v1/clan_data/bulk" -> clanDataBulk(ctx, msg, qs);
-			case "/api/v1/cloud_data" -> cloudData(ctx, msg, qs);
+			case "/api/v1/cloud_data" -> cloudData(ctx, msg);
 			case "/api/v1/player_data" -> playerData(ctx, msg, qs);
 			case "/api/v1/player_data/bulk" -> playerDataBulk(ctx, msg, qs);
 			case "/api/v1/player_inventory" -> playerInventory(ctx, msg, qs);
 			case "/api/v1/player_inventory/equipped" -> playerInventoryEquipped(ctx, msg, qs);
 			case "/api/v1/player_status" -> playerStatus(ctx, msg, qs);
-			case "/api/v1/player_status/bulk" -> playerStatusBulk(ctx, msg, qs);
-			case "/api/v1/ucd/clan_list" -> ucdClanList(ctx, msg, qs);
-			case "/api/v1/ucd/player_exp_leaderboard" -> ucdPlayerExpLeaderboard(ctx, msg, qs);
-			case "/private/bf_ucd_refresh" -> bfUcdRefresh(ctx, msg, qs);
+			case "/api/v1/player_status/bulk" -> playerStatusBulk(ctx, msg);
+			case "/api/v1/ucd/clan_list" -> ucdClanList(ctx, msg);
+			case "/api/v1/ucd/player_exp_leaderboard" -> ucdPlayerExpLeaderboard(ctx, msg);
+			case "/private/bf_ucd_refresh" -> bfUcdRefresh(ctx, msg);
 			default -> null;
 		};
 
 		if (response == null) {
-			response = Responses.error(
-				ctx, msg,
-				HttpResponseStatus.NOT_FOUND,
-				"not_found"
-			);
+			response = BfApiError.ENDPOINT_NOT_FOUND.response(ctx, msg);
 		}
 
 		log.info("{} {} - {}", msg.method(), msg.uri(), response.status().code());
@@ -99,7 +92,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		}
 	}
 
-	private FullHttpResponse clanData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse clanData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		BfConnection connection = connectionReference.get();
 
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
@@ -107,47 +100,44 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"cloud_disconnected"
-			);
+			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
 		}
 
-		if (!qs.parameters().containsKey("uuid")) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.BAD_REQUEST,
-				"missing_uuid"
-			);
+		var stubResult = booleanFromParams(qs, "stub", BfApiError.INVALID_STUB);
+		if (stubResult.right() != null) {
+			return stubResult.right().response(ctx, msg);
 		}
+		boolean stub = stubResult.leftBoolean();
 
-		Optional<UUID> uuid = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
-		if (uuid.isEmpty()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.BAD_REQUEST,
-				"invalid_uuid"
-			);
+		Pair<UUID, BfApiError> uuidResult = uuidFromParams(qs);
+		if (uuidResult.right() != null) {
+			return uuidResult.right().response(ctx, msg);
 		}
+		UUID uuid = uuidResult.left();
 
 		ExpiryHolder<AbstractClanData> data;
 		try {
-			data = connection.dataCache.clanData.get(uuid.orElseThrow())
+			data = connection.dataCache.clanData.get(uuid)
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving clan data", e);
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"internal_server_error"
-			);
+			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
 		} catch (TimeoutException e) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"packet_timeout"
-			);
+			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
 		}
 
 		FullHttpResponse response = Responses.json(
 			ctx, msg, HttpResponseStatus.OK,
-			w -> Serialization.clan(w, data.value(), connection.dataCache)
+			w -> {
+				AbstractClanData value = data.value();
+				if (stub) {
+					w.beginObject();
+					Serialization.namedStub(w, value.getClanId(), value.getName());
+					w.endObject();
+				} else {
+					Serialization.clan(w, value, connection.dataCache);
+				}
+			}
 		);
 		if (data.expires() != null) {
 			Responses.cacheHeaders(response, data.expires());
@@ -155,7 +145,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		return response;
 	}
 
-	private FullHttpResponse clanDataBulk(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse clanDataBulk(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		BfConnection connection = connectionReference.get();
 
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.POST);
@@ -163,15 +153,18 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"cloud_disconnected"
-			);
+			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
 		}
 
-		Pair<Set<UUID>, FullHttpResponse> uuidsResult = parseUuidSet(ctx, msg);
+		var stubResult = booleanFromParams(qs, "stub", BfApiError.INVALID_STUB);
+		if (stubResult.right() != null) {
+			return stubResult.right().response(ctx, msg);
+		}
+		boolean stub = stubResult.leftBoolean();
+
+		Pair<Set<UUID>, BfApiError> uuidsResult = parseUuidSet(msg.content());
 		if (uuidsResult.right() != null) {
-			return uuidsResult.right();
+			return uuidsResult.right().response(ctx, msg);
 		}
 
 		var dataFutures = connection.dataCache.clanData.get(uuidsResult.left());
@@ -179,15 +172,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			CompletableFuture.allOf(dataFutures.values().toArray(CompletableFuture[]::new)).get(20, TimeUnit.SECONDS);
 		} catch (InterruptedException | ExecutionException e) {
 			log.error("error while retrieving bulk clan data", e);
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"internal_server_error"
-			);
+			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
 		} catch (TimeoutException e) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"packet_timeout"
-			);
+			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
 		}
 		List<AbstractClanData> clanDatas = dataFutures.values().stream()
 			.map(f -> f.join().value()).toList();
@@ -197,14 +184,20 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			w -> {
 				w.beginArray();
 				for (AbstractClanData clanData : clanDatas) {
-					Serialization.clan(w, clanData, connection.dataCache);
+					if (stub) {
+						w.beginObject();
+						Serialization.namedStub(w, clanData.getClanId(), clanData.getName());
+						w.endObject();
+					} else {
+						Serialization.clan(w, clanData, connection.dataCache);
+					}
 				}
 				w.endArray();
 			}
 		);
 	}
 
-	private FullHttpResponse cloudData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse cloudData(ChannelHandlerContext ctx, FullHttpRequest msg) {
 		BfConnection connection = connectionReference.get();
 
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
@@ -212,40 +205,29 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"cloud_disconnected"
-			);
+			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
 		}
 
-		ExpiryHolder<BfCloudData> data;
+		// we could use last modified headers but cloud stats change too often for it to really matter
+
+		BfCloudData data;
 		try {
 			data = connection.dataCache.cloudData.get()
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving cloud data", e);
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"internal_server_error"
-			);
+			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
 		} catch (TimeoutException e) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"packet_timeout"
-			);
+			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
 		}
 
-		FullHttpResponse response = Responses.json(
+		return Responses.json(
 			ctx, msg, HttpResponseStatus.OK,
-			w -> data.value().serialize(w, connection.dataCache)
+			w -> data.serialize(w, connection.dataCache)
 		);
-		if (data.expires() != null) {
-			Responses.cacheHeaders(response, data.expires());
-		}
-		return response;
 	}
 
-	private FullHttpResponse playerData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse playerData(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		BfConnection connection = connectionReference.get();
 		UnofficialCloudData ucd = ucdReference.get();
 
@@ -254,15 +236,18 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"cloud_disconnected"
-			);
+			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
 		}
 
-		Pair<UUID, FullHttpResponse> uuidResult = playerUuidFromParams(ctx, msg, qs);
+		var stubResult = booleanFromParams(qs, "stub", BfApiError.INVALID_STUB);
+		if (stubResult.right() != null) {
+			return stubResult.right().response(ctx, msg);
+		}
+		boolean stub = stubResult.leftBoolean();
+
+		Pair<UUID, BfApiError> uuidResult = uuidFromParams(qs);
 		if (uuidResult.right() != null) {
-			return uuidResult.right();
+			return uuidResult.right().response(ctx, msg);
 		}
 		UUID uuid = uuidResult.left();
 
@@ -272,20 +257,23 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
 			log.error("error while retrieving player data", e);
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"internal_server_error"
-			);
+			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
 		} catch (TimeoutException e) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"packet_timeout"
-			);
+			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
 		}
 
 		FullHttpResponse response = Responses.json(
 			ctx, msg, HttpResponseStatus.OK,
-			w -> data.value().serialize(w, connection.dataCache, ucd)
+			w -> {
+				BfPlayerData value = data.value();
+				if (stub) {
+					w.beginObject();
+					Serialization.namedStub(w, value.getUUID(), value.getUsername());
+					w.endObject();
+				} else {
+					value.serialize(w, connection.dataCache, ucd);
+				}
+			}
 		);
 		if (data.expires() != null) {
 			Responses.cacheHeaders(response, data.expires());
@@ -293,7 +281,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		return response;
 	}
 
-	private FullHttpResponse playerDataBulk(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse playerDataBulk(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		BfConnection connection = connectionReference.get();
 		UnofficialCloudData ucd = ucdReference.get();
 
@@ -302,15 +290,18 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"cloud_disconnected"
-			);
+			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
 		}
 
-		Pair<Set<UUID>, FullHttpResponse> uuidsResult = parseUuidSet(ctx, msg);
+		var stubResult = booleanFromParams(qs, "stub", BfApiError.INVALID_STUB);
+		if (stubResult.right() != null) {
+			return stubResult.right().response(ctx, msg);
+		}
+		boolean stub = stubResult.leftBoolean();
+
+		Pair<Set<UUID>, BfApiError> uuidsResult = parseUuidSet(msg.content());
 		if (uuidsResult.right() != null) {
-			return uuidsResult.right();
+			return uuidsResult.right().response(ctx, msg);
 		}
 
 		var dataFutures = connection.dataCache.playerData.get(uuidsResult.left());
@@ -318,15 +309,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			CompletableFuture.allOf(dataFutures.values().toArray(CompletableFuture[]::new)).get(20, TimeUnit.SECONDS);
 		} catch (InterruptedException | ExecutionException e) {
 			log.error("error while retrieving bulk player data", e);
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"internal_server_error"
-			);
+			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
 		} catch (TimeoutException e) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"packet_timeout"
-			);
+			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
 		}
 		List<BfPlayerData> playerDatas = dataFutures.values().stream()
 			.map(f -> f.join().value()).toList();
@@ -336,14 +321,20 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			w -> {
 				w.beginArray();
 				for (BfPlayerData playerData : playerDatas) {
-					playerData.serialize(w, connection.dataCache, ucd);
+					if (stub) {
+						w.beginObject();
+						Serialization.namedStub(w, playerData.getUUID(), playerData.getUsername());
+						w.endObject();
+					} else {
+						playerData.serialize(w, connection.dataCache, ucd);
+					}
 				}
 				w.endArray();
 			}
 		);
 	}
 
-	private FullHttpResponse playerInventory(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse playerInventory(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		BfConnection connection = connectionReference.get();
 
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
@@ -351,38 +342,24 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"cloud_disconnected"
-			);
+			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
 		}
 
-		boolean includeUuid = false;
-		if (qs.parameters().containsKey("include_uuid")) {
-			try {
-				includeUuid = Boolean.parseBoolean(qs.parameters().get("include_uuid").getFirst());
-			} catch (Exception e) {
-				return Responses.error(
-					ctx, msg, HttpResponseStatus.BAD_REQUEST,
-					"invalid_include_uuid"
-				);
-			}
+		var includeUuidResult = booleanFromParams(qs, "include_uuid", BfApiError.INVALID_INCLUDE_UUID);
+		if (includeUuidResult.right() != null) {
+			return includeUuidResult.right().response(ctx, msg);
 		}
-		boolean includeDetails = false;
-		if (qs.parameters().containsKey("include_details")) {
-			try {
-				includeDetails = Boolean.parseBoolean(qs.parameters().get("include_details").getFirst());
-			} catch (Exception e) {
-				return Responses.error(
-					ctx, msg, HttpResponseStatus.BAD_REQUEST,
-					"invalid_include_details"
-				);
-			}
-		}
+		boolean includeUuid = includeUuidResult.leftBoolean();
 
-		Pair<UUID, FullHttpResponse> uuidResult = playerUuidFromParams(ctx, msg, qs);
+		var includeDetailsResult = booleanFromParams(qs, "include_details", BfApiError.INVALID_INCLUDE_DETAILS);
+		if (includeDetailsResult.right() != null) {
+			return includeDetailsResult.right().response(ctx, msg);
+		}
+		boolean includeDetails = includeDetailsResult.leftBoolean();
+
+		Pair<UUID, BfApiError> uuidResult = uuidFromParams(qs);
 		if (uuidResult.right() != null) {
-			return uuidResult.right();
+			return uuidResult.right().response(ctx, msg);
 		}
 		UUID uuid = uuidResult.left();
 
@@ -391,24 +368,16 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			data = connection.dataCache.playerInventory.get(uuid)
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
-			log.error("error while retrieving player data", e);
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"internal_server_error"
-			);
+			log.error("error while retrieving player inventory", e);
+			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
 		} catch (TimeoutException e) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"packet_timeout"
-			);
+			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
 		}
 
-		boolean finalIncludeUuid = includeUuid;
-		boolean finalIncludeDetails = includeDetails;
 		FullHttpResponse response = Responses.json(
 			ctx, msg, HttpResponseStatus.OK,
 			w -> data.value().serialize(
-				w, connection.registry, finalIncludeUuid, finalIncludeDetails,
+				w, connection.registry, includeUuid, includeDetails,
 				Util.unchecked(w2 -> {
 					w2.name("player").beginObject();
 					Serialization.playerStub(w2, connection.dataCache, uuid);
@@ -422,7 +391,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		return response;
 	}
 
-	private FullHttpResponse playerInventoryEquipped(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse playerInventoryEquipped(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		BfConnection connection = connectionReference.get();
 
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
@@ -430,33 +399,24 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"cloud_disconnected"
-			);
+			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
 		}
 
-		Pair<UUID, FullHttpResponse> uuidResult = playerUuidFromParams(ctx, msg, qs);
+		Pair<UUID, BfApiError> uuidResult = uuidFromParams(qs);
 		if (uuidResult.right() != null) {
-			return uuidResult.right();
+			return uuidResult.right().response(ctx, msg);
 		}
 		UUID uuid = uuidResult.left();
 
 		ExpiryHolder<Set<UUID>> data;
 		try {
-			data = connection.dataCache.itemDefault.get(uuid)
+			data = connection.dataCache.playerInventoryDefaults.get(uuid)
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
-			log.error("error while retrieving player data", e);
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"internal_server_error"
-			);
+			log.error("error while retrieving player inventory defaults", e);
+			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
 		} catch (TimeoutException e) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"packet_timeout"
-			);
+			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
 		}
 
 		FullHttpResponse response = Responses.json(
@@ -481,7 +441,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		return response;
 	}
 
-	private FullHttpResponse playerStatus(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse playerStatus(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
 		BfConnection connection = connectionReference.get();
 
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
@@ -489,15 +449,12 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"cloud_disconnected"
-			);
+			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
 		}
 
-		Pair<UUID, FullHttpResponse> uuidResult = playerUuidFromParams(ctx, msg, qs);
+		Pair<UUID, BfApiError> uuidResult = uuidFromParams(qs);
 		if (uuidResult.right() != null) {
-			return uuidResult.right();
+			return uuidResult.right().response(ctx, msg);
 		}
 		UUID uuid = uuidResult.left();
 
@@ -506,16 +463,10 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			data = connection.dataCache.playerStatus.get(uuid)
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
-			log.error("error while retrieving player data", e);
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"internal_server_error"
-			);
+			log.error("error while retrieving player status", e);
+			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
 		} catch (TimeoutException e) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"packet_timeout"
-			);
+			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
 		}
 
 		FullHttpResponse response = Responses.json(
@@ -536,7 +487,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		return response;
 	}
 
-	private FullHttpResponse playerStatusBulk(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse playerStatusBulk(ChannelHandlerContext ctx, FullHttpRequest msg) {
 		BfConnection connection = connectionReference.get();
 
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.POST);
@@ -544,15 +495,12 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"cloud_disconnected"
-			);
+			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
 		}
 
-		Pair<Set<UUID>, FullHttpResponse> uuidsResult = parseUuidSet(ctx, msg);
+		Pair<Set<UUID>, BfApiError> uuidsResult = parseUuidSet(msg.content());
 		if (uuidsResult.right() != null) {
-			return uuidsResult.right();
+			return uuidsResult.right().response(ctx, msg);
 		}
 
 		var dataFutures = connection.dataCache.playerStatus.get(uuidsResult.left());
@@ -560,15 +508,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			CompletableFuture.allOf(dataFutures.values().toArray(CompletableFuture[]::new)).get(20, TimeUnit.SECONDS);
 		} catch (InterruptedException | ExecutionException e) {
 			log.error("error while retrieving bulk player status", e);
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"internal_server_error"
-			);
+			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
 		} catch (TimeoutException e) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.INTERNAL_SERVER_ERROR,
-				"packet_timeout"
-			);
+			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
 		}
 		Map<UUID, PlayerStatus> playerStatuses = dataFutures.entrySet().stream()
 			.collect(Collectors.toMap(
@@ -595,7 +537,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		);
 	}
 
-	private FullHttpResponse ucdClanList(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse ucdClanList(ChannelHandlerContext ctx, FullHttpRequest msg) {
 		UnofficialCloudData ucd = ucdReference.get();
 
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
@@ -603,10 +545,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (ucd == null) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"ucd_unavailable"
-			);
+			return BfApiError.UCD_UNAVAILABLE.response(ctx, msg);
 		}
 
 		return Responses.json(
@@ -615,7 +554,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		);
 	}
 
-	private FullHttpResponse ucdPlayerExpLeaderboard(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse ucdPlayerExpLeaderboard(ChannelHandlerContext ctx, FullHttpRequest msg) {
 		UnofficialCloudData ucd = ucdReference.get();
 
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
@@ -623,32 +562,16 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (ucd == null) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"ucd_unavailable"
-			);
+			return BfApiError.UCD_UNAVAILABLE.response(ctx, msg);
 		}
 
 		Instant lastRefreshed = ucd.getLastRefreshed();
 
-		try {
-			if (lastRefreshed != null && msg.headers().contains(HttpHeaderNames.IF_MODIFIED_SINCE)) {
-				Instant requestModifiedSince = DateTimeFormatter.RFC_1123_DATE_TIME
-					.parse(msg.headers().get(HttpHeaderNames.IF_MODIFIED_SINCE), ZonedDateTime::from)
-					.toInstant();
-				if (!lastRefreshed.truncatedTo(ChronoUnit.SECONDS).isAfter(requestModifiedSince)) {
-					FullHttpResponse response = new DefaultFullHttpResponse(
-						msg.protocolVersion(),
-						HttpResponseStatus.NOT_MODIFIED
-					);
-					response.headers().set(
-						HttpHeaderNames.LAST_MODIFIED,
-						Responses.formatInstant(lastRefreshed)
-					);
-					return response;
-				}
+		if (lastRefreshed != null) {
+			FullHttpResponse notModifiedResponse = Responses.checkIfModifiedSince(msg, lastRefreshed);
+			if (notModifiedResponse != null) {
+				return notModifiedResponse;
 			}
-		} catch (DateTimeParseException _) {
 		}
 
 		FullHttpResponse response = Responses.json(
@@ -657,16 +580,13 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		);
 
 		if (lastRefreshed != null) {
-			response.headers().set(
-				HttpHeaderNames.LAST_MODIFIED,
-				Responses.formatInstant(lastRefreshed)
-			);
+			Responses.lastModifiedHeaders(response, lastRefreshed);
 		}
 
 		return response;
 	}
 
-	private FullHttpResponse bfUcdRefresh(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse bfUcdRefresh(ChannelHandlerContext ctx, FullHttpRequest msg) {
 		BfConnection connection = connectionReference.get();
 		UnofficialCloudData ucd = ucdReference.get();
 
@@ -675,20 +595,14 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return methodResponse;
 		}
 		if (connection == null || !connection.isConnectedAndVerified()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.SERVICE_UNAVAILABLE,
-				"cloud_disconnected"
-			);
+			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
 		}
 
 		ByteBuf content = msg.content();
 		int contentLength = content.readableBytes();
 
 		if (contentLength != ucdRefreshSecret.length()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.FORBIDDEN,
-				"invalid_secret"
-			);
+			return BfApiError.INVALID_SECRET.response(ctx, msg);
 		}
 
 		byte[] secretBytes = new byte[contentLength];
@@ -696,17 +610,11 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		String secret = new String(secretBytes, StandardCharsets.US_ASCII);
 
 		if (!secret.equals(ucdRefreshSecret)) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.FORBIDDEN,
-				"invalid_secret"
-			);
+			return BfApiError.INVALID_SECRET.response(ctx, msg);
 		}
 
 		if (!ucd.startRefresh()) {
-			return Responses.error(
-				ctx, msg, HttpResponseStatus.CONFLICT,
-				"refresh_in_progress"
-			);
+			return BfApiError.REFRESH_IN_PROGRESS.response(ctx, msg);
 		}
 
 		return new DefaultFullHttpResponse(
@@ -715,39 +623,38 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		);
 	}
 
-	private static Pair<UUID, @Nullable FullHttpResponse> playerUuidFromParams(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private static BooleanObjectPair<BfApiError> booleanFromParams(QueryStringDecoder qs, String key, BfApiError invalidError) {
+		if (!qs.parameters().containsKey(key)) {
+			return BooleanObjectPair.of(false, null);
+		}
+		try {
+			return BooleanObjectPair.of(Boolean.parseBoolean(qs.parameters().get("stub").getFirst()), null);
+		} catch (Exception e) {
+			return BooleanObjectPair.of(false, invalidError);
+		}
+	}
+
+	private static Pair<UUID, BfApiError> uuidFromParams(QueryStringDecoder qs) {
 		if (!qs.parameters().containsKey("uuid")) {
-			return Pair.of(null, Responses.error(
-				ctx, msg, HttpResponseStatus.BAD_REQUEST,
-				"missing_uuid"
-			));
+			return Pair.of(null, BfApiError.MISSING_UUID);
 		}
 
 		Optional<UUID> uuidParseResult = Util.parseUuidLenient(qs.parameters().get("uuid").getFirst());
 		if (uuidParseResult.isEmpty()) {
-			return Pair.of(null, Responses.error(
-				ctx, msg, HttpResponseStatus.BAD_REQUEST,
-				"invalid_uuid"
-			));
+			return Pair.of(null, BfApiError.INVALID_UUID);
 		}
 		return Pair.of(uuidParseResult.orElseThrow(), null);
 	}
 
-	private static Pair<Set<UUID>, @Nullable FullHttpResponse> parseUuidSet(ChannelHandlerContext ctx, FullHttpRequest msg) {
-		Set<Optional<UUID>> parsedUuids = Arrays.stream(msg.content().toString(StandardCharsets.US_ASCII).split(","))
+	private static Pair<Set<UUID>, BfApiError> parseUuidSet(ByteBuf content) {
+		Set<Optional<UUID>> parsedUuids = Arrays.stream(content.toString(StandardCharsets.US_ASCII).split(","))
 			.map(Util::parseUuidLenient).collect(Collectors.toSet());
 
 		if (parsedUuids.stream().anyMatch(Optional::isEmpty)) {
-			return Pair.of(null, Responses.error(
-				ctx, msg, HttpResponseStatus.BAD_REQUEST,
-				"invalid_uuid_set"
-			));
+			return Pair.of(null, BfApiError.INVALID_UUID_SET);
 		}
 		if (parsedUuids.size() > MAX_BULK_SIZE) {
-			return Pair.of(null, Responses.error(
-				ctx, msg, HttpResponseStatus.BAD_REQUEST,
-				"uuid_set_size_too_large"
-			));
+			return Pair.of(null, BfApiError.UUID_SET_TOO_LARGE);
 		}
 
 		return Pair.of(parsedUuids.stream().map(Optional::orElseThrow).collect(Collectors.toSet()), null);

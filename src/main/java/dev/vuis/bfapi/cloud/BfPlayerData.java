@@ -7,7 +7,6 @@ import com.boehmod.bflib.cloud.common.player.PlayerGroup;
 import com.boehmod.bflib.cloud.common.player.PlayerRank;
 import com.boehmod.bflib.cloud.common.player.PunishmentType;
 import com.google.gson.stream.JsonWriter;
-import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.util.Util;
 import io.netty.buffer.ByteBuf;
@@ -100,7 +99,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		if (dataCache != null) {
 			BfCloudData cloudData = null;
 			try {
-				cloudData = dataCache.cloudData.get().get(10, TimeUnit.SECONDS).value();
+				cloudData = dataCache.cloudData.get().get(10, TimeUnit.SECONDS);
 			} catch (ExecutionException | InterruptedException | TimeoutException e) {
 				log.error("cloud data fetch for player serialization failed", e);
 			}

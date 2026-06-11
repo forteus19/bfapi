@@ -1,16 +1,16 @@
-package dev.vuis.bfapi.cloud.cache;
+package dev.vuis.bfapi.cache;
 
-import com.boehmod.bflib.cloud.common.RequestType;
-import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.util.cache.TimedAccumulator;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.jetbrains.annotations.NotNull;
 
 public class AccumulatedCacheHolder<T> extends IdentifiableCacheHolder<T> implements AutoCloseable {
 	private final Supplier<T> constructor;
@@ -18,8 +18,8 @@ public class AccumulatedCacheHolder<T> extends IdentifiableCacheHolder<T> implem
 	private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 	private final Map<UUID, TimedAccumulator<T>> accumulators = new ConcurrentHashMap<>();
 
-	AccumulatedCacheHolder(BfConnection connection, RequestType requestType, Supplier<T> constructor, Duration lifetime) {
-		super(connection, requestType, lifetime);
+	public AccumulatedCacheHolder(@NotNull Consumer<Set<UUID>> requester, @NotNull Supplier<T> constructor, @NotNull Duration lifetime) {
+		super(requester, lifetime);
 		this.constructor = constructor;
 	}
 

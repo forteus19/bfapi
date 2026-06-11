@@ -1,10 +1,10 @@
 package dev.vuis.bfapi.cloud.unofficial;
 
-import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.cloud.BfCloudData;
+import dev.vuis.bfapi.cloud.BfDataCache;
 import dev.vuis.bfapi.cloud.BfPlayerData;
-import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.util.Util;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -51,7 +53,7 @@ public final class UnofficialCloudData {
 		return playerList.get().isEmpty();
 	}
 
-	public Instant getLastRefreshed() {
+	public @Nullable Instant getLastRefreshed() {
 		return lastRefreshed.get();
 	}
 
@@ -80,19 +82,21 @@ public final class UnofficialCloudData {
 	private void refresh() {
 		Set<UUID> playerListGet = playerList.get();
 
-		int numChunks = Math.ceilDiv(playerListGet.size(), REQUEST_CHUNK_SIZE);
-		log.info("requesting data for {} players ({} chunks)", playerListGet.size(), numChunks);
+		List<List<UUID>> uuidChunks = Lists.partition(new ArrayList<>(playerListGet), REQUEST_CHUNK_SIZE);
+		log.info("requesting data for {} players ({} chunks)", playerListGet.size(), uuidChunks.size());
 
-		List<BfPlayerData> playerDatas = new ArrayList<>();
+		List<BfPlayerData> playerDatas = new ArrayList<>(playerListGet.size());
 
-		Iterable<List<UUID>> uuidChunks = Iterables.partition(playerListGet, REQUEST_CHUNK_SIZE);
-		int currentChunk = 0;
+		for (int i = 0; i < uuidChunks.size(); i++) {
+			try {
+				Thread.sleep(REQUEST_PADDING_TIME);
+			} catch (InterruptedException _) {
+			}
 
-		for (List<UUID> uuidChunk : uuidChunks) {
-			currentChunk++;
-			log.info("getting chunk {}/{}", currentChunk, numChunks);
+			List<UUID> chunk = uuidChunks.get(i);
+			log.info("getting chunk {}/{}", i + 1, uuidChunks.size());
 
-			var listDataFutures = dataCache.playerData.get(uuidChunk);
+			var listDataFutures = dataCache.playerData.get(new HashSet<>(chunk));
 			try {
 				CompletableFuture.allOf(listDataFutures.values().toArray(new CompletableFuture[0])).get(5, TimeUnit.MINUTES);
 			} catch (InterruptedException | ExecutionException e) {
@@ -110,17 +114,9 @@ public final class UnofficialCloudData {
 				.filter(Util::hasPrestigeExp)
 				.toList());
 
-			int numFiltered = uuidChunk.size() - playerDatas.size();
+			int numFiltered = chunk.size() - playerDatas.size();
 			if (numFiltered > 0) {
 				log.warn("{} players were filtered out", numFiltered);
-			}
-
-			if (currentChunk != numChunks) {
-				try {
-					Thread.sleep(REQUEST_PADDING_TIME);
-				} catch (InterruptedException e) {
-					throw new RuntimeException(e);
-				}
 			}
 		}
 
@@ -139,7 +135,7 @@ public final class UnofficialCloudData {
 		log.info("requesting cloud data");
 		BfCloudData cloudData;
 		try {
-			cloudData = dataCache.cloudData.get().get(10, TimeUnit.SECONDS).value();
+			cloudData = dataCache.cloudData.get().get(10, TimeUnit.SECONDS);
 		} catch (InterruptedException | ExecutionException e) {
 			log.error("ucd cloud data request failed", e);
 			refreshing.set(false);

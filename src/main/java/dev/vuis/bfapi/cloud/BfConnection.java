@@ -18,7 +18,6 @@ import com.boehmod.bflib.cloud.packet.primitives.ClientLoginPacket;
 import com.boehmod.bflib.cloud.packet.primitives.ClientLogoutPacket;
 import com.boehmod.bflib.cloud.packet.primitives.EncryptionKeyExchangePacket;
 import com.boehmod.bflib.cloud.packet.primitives.EncryptionReadyPacket;
-import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.util.AuthUtil;
 import dev.vuis.bfapi.util.Util;
@@ -47,20 +46,23 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import javax.crypto.SecretKey;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.raphimc.minecraftauth.java.JavaAuthManager;
 import net.raphimc.minecraftauth.java.model.MinecraftProfile;
-import net.raphimc.minecraftauth.java.model.MinecraftToken;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 @Slf4j
 public class BfConnection extends Connection<BfPlayerData> implements AutoCloseable {
 	private static final int MAX_CONNECT_ATTEMPTS = 10;
+	private static final int MAX_MISSED_CLOUD_HEARTBEATS = 1;
 
 	private static final Random SECURE_RANDOM = new SecureRandom();
 
@@ -76,6 +78,8 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 
 	private final ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
 	private @Nullable ScheduledFuture<?> heartbeatFuture;
+	private final AtomicBoolean receivedCloudHeartbeat = new AtomicBoolean(true);
+	private final AtomicInteger missedCloudHeartbeats = new AtomicInteger();
 
 	private final ScheduledExecutorService reconnectExecutor = Executors.newSingleThreadScheduledExecutor();
 
@@ -95,22 +99,38 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 	private final String versionHash;
 	private final byte[] hardwareId;
 	private final JavaAuthManager mcAuth;
+	private final String userAgent;
+	private final Function<String, UUID> commandUserRetriever;
 
 	@Getter
 	private @Nullable Channel channel = null;
-	private int connectAttempts = 0;
+	private final AtomicInteger connectAttempts = new AtomicInteger();
 
-	public BfConnection(SocketAddress address, String version, String versionHash, byte[] hardwareId, JavaAuthManager mcAuth) {
+	public BfConnection(
+		SocketAddress address,
+		String version,
+		String versionHash,
+		byte[] hardwareId,
+		JavaAuthManager mcAuth,
+		String userAgent,
+		Function<String, UUID> commandUserRetriever
+	) {
 		super(30 * 20);
 		this.address = address;
 		this.version = version;
 		this.versionHash = versionHash;
 		this.hardwareId = hardwareId;
 		this.mcAuth = mcAuth;
+		this.userAgent = userAgent;
+		this.commandUserRetriever = commandUserRetriever;
 	}
 
 	public void connect() {
 		log.info("connecting to cloud at {}", address);
+
+		dataCache.purge();
+		receivedCloudHeartbeat.set(true);
+		connectAttempts.incrementAndGet();
 
 		Bootstrap bootstrap = new Bootstrap()
 			.group(new MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory()))
@@ -119,7 +139,6 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 			.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30_000)
 			.handler(new BfCloudChannelInitializer(this));
 
-		connectAttempts++;
 		bootstrap.connect(address).addListener((ChannelFutureListener) channelFuture -> {
 			if (channelFuture.isSuccess()) {
 				log.info("cloud connection established at {}", address);
@@ -198,12 +217,15 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 
 				log.info("joining session server");
 				try {
-					MinecraftProfile mcProfile = mcAuth.getMinecraftProfile().getUpToDate();
-					MinecraftToken mcToken = mcAuth.getMinecraftToken().getUpToDate();
-					AuthUtil.mcJoinServer(mcProfile.getId(), mcToken.getToken(), serverId);
-				} catch (IOException | InterruptedException e) {
+					AuthUtil.mcJoinServer(
+						mcAuth.getMinecraftProfile().getUpToDate().getId(),
+						mcAuth.getMinecraftToken().getUpToDate().getToken(),
+						serverId,
+						userAgent
+					);
+				} catch (Exception e) {
 					log.error("failed to join session server", e);
-					disconnect("failed to join session server", false);
+					reconnect(false);
 				}
 
 				log.info("sending login packet");
@@ -211,7 +233,7 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 			}
 			case CONNECTED_VERIFIED -> {
 				log.info("cloud connection verified");
-				connectAttempts = 0;
+				connectAttempts.set(0);
 
 				if (heartbeatFuture == null) {
 					heartbeatFuture = heartbeatExecutor.scheduleAtFixedRate(
@@ -236,15 +258,39 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 	}
 
 	private void heartbeat() {
-		if (isConnectedAndVerified()) {
-			sendPacket(new ClientHeartBeatPacket());
+		if (!isConnectedAndVerified()) {
+			reconnect(false);
+
+			return;
 		}
+
+		if (receivedCloudHeartbeat.compareAndSet(true, false)) {
+			missedCloudHeartbeats.set(0);
+		} else {
+			int missedNow = missedCloudHeartbeats.incrementAndGet();
+			log.warn("cloud heartbeat packet missed ({})", missedNow);
+
+			if (missedNow >= MAX_MISSED_CLOUD_HEARTBEATS) {
+				log.error("max heartbeats missed");
+				reconnect(false);
+
+				return;
+			}
+		}
+
+		sendPacket(new ClientHeartBeatPacket());
+	}
+
+	public void cloudHeartbeat() {
+		receivedCloudHeartbeat.compareAndSet(false, true);
 	}
 
 	private void reconnect(boolean connectNow) {
+		missedCloudHeartbeats.set(0);
+
 		disconnect("reconnecting", true);
 
-		if (connectAttempts < MAX_CONNECT_ATTEMPTS) {
+		if (connectAttempts.get() < MAX_CONNECT_ATTEMPTS) {
 			if (connectNow) {
 				log.info("reconnecting");
 
@@ -264,6 +310,10 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 
 	public void addStatusListener(BiConsumer<BfConnection, ConnectionStatus> statusListener) {
 		statusListeners.add(statusListener);
+	}
+
+	public @Nullable UUID getCommandUserUuid(@NotNull String username) {
+		return commandUserRetriever.apply(username);
 	}
 
 	public @Nullable String handleCommand(@NotNull String fullCommand) {

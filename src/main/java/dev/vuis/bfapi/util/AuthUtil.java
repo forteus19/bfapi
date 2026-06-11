@@ -1,6 +1,5 @@
 package dev.vuis.bfapi.util;
 
-import com.google.common.base.Suppliers;
 import com.google.gson.JsonObject;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -9,12 +8,12 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import net.raphimc.minecraftauth.java.JavaAuthManager;
 import net.raphimc.minecraftauth.msa.model.MsaDeviceCode;
@@ -24,7 +23,7 @@ import net.raphimc.minecraftauth.msa.service.impl.DeviceCodeMsaAuthService;
 public final class AuthUtil {
 	private static final URI MC_JOIN_SERVER_URI = URI.create("https://sessionserver.mojang.com/session/minecraft/join");
 
-	private static final Supplier<HttpClient> HTTP_CLIENT = Suppliers.memoize(HttpClient::newHttpClient);
+	private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
 	private AuthUtil() {
 	}
@@ -55,7 +54,7 @@ public final class AuthUtil {
 		);
 	}
 
-	public static void mcJoinServer(UUID profileUuid, String accessToken, String serverId) throws IOException, InterruptedException {
+	public static void mcJoinServer(UUID profileUuid, String accessToken, String serverId, String userAgent) throws IOException, InterruptedException {
 		log.info("joining session server");
 
 		JsonObject bodyJson = Util.apply(new JsonObject(), root -> {
@@ -67,11 +66,12 @@ public final class AuthUtil {
 
 		HttpRequest request = HttpRequest.newBuilder()
 			.uri(MC_JOIN_SERVER_URI)
-			.header("Content-Type", "application/json")
-			.POST(HttpRequest.BodyPublishers.ofString(body))
+			.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+			.header("Content-Type", "application/json; charset=utf-8")
+			.header("User-Agent", userAgent)
 			.build();
 
-		HttpResponse<String> response = HTTP_CLIENT.get().send(request, HttpResponse.BodyHandlers.ofString());
+		HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 		if (!Util.isSuccess(response.statusCode())) {
 			throw new RuntimeException("join server request failed (" + response.statusCode() + "):\n" + response.body());
 		}

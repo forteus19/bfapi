@@ -1,7 +1,6 @@
 package dev.vuis.bfapi.cloud;
 
 import com.google.gson.stream.JsonWriter;
-import dev.vuis.bfapi.cloud.cache.BfDataCache;
 import dev.vuis.bfapi.data.Serialization;
 import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
@@ -11,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 public record BfCloudData(
 	int usersOnline,
@@ -20,7 +18,7 @@ public record BfCloudData(
 	List<ObjectIntImmutablePair<UUID>> playerScores,
 	List<ObjectIntImmutablePair<UUID>> clanScores
 ) {
-	public @NotNull JsonWriter serialize(@NotNull JsonWriter w, @Nullable BfDataCache dataCache) throws IOException {
+	public @NotNull JsonWriter serialize(@NotNull JsonWriter w, @NotNull BfDataCache dataCache) throws IOException {
 		w.beginObject();
 
 		w.name("players_online").value(usersOnline);
