@@ -62,7 +62,7 @@ import org.jetbrains.annotations.Nullable;
 @Slf4j
 public class BfConnection extends Connection<BfPlayerData> implements AutoCloseable {
 	private static final int MAX_CONNECT_ATTEMPTS = 10;
-	private static final int MAX_MISSED_CLOUD_HEARTBEATS = 1;
+	private static final int MAX_MISSED_CLOUD_HEARTBEATS = 4;
 
 	private static final Random SECURE_RANDOM = new SecureRandom();
 
