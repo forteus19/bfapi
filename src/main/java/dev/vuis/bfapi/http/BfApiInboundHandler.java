@@ -1,7 +1,7 @@
 package dev.vuis.bfapi.http;
 
 import com.boehmod.bflib.cloud.common.AbstractClanData;
-import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
+import com.boehmod.bflib.cloud.common.player.status.PublicPlayerStatus;
 import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.BfPlayerData;
@@ -69,9 +69,12 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			case "/api/v1/player_data" -> playerData(ctx, msg, qs);
 			case "/api/v1/player_data/bulk" -> playerDataBulk(ctx, msg, qs);
 			case "/api/v1/player_inventory" -> playerInventory(ctx, msg, qs);
-			case "/api/v1/player_inventory/equipped" -> playerInventoryEquipped(ctx, msg, qs);
-			case "/api/v1/player_status" -> playerStatus(ctx, msg, qs);
-			case "/api/v1/player_status/bulk" -> playerStatusBulk(ctx, msg);
+//			case "/api/v1/player_inventory/equipped" -> playerInventoryEquipped(ctx, msg, qs);
+			case "/api/v1/player_inventory/equipped" -> BfApiError.ENDPOINT_REMOVED.response(ctx, msg);
+//			case "/api/v1/player_status" -> playerStatus(ctx, msg, qs);
+			case "/api/v1/player_status" -> BfApiError.ENDPOINT_REMOVED.response(ctx, msg);
+//			case "/api/v1/player_status/bulk" -> playerStatusBulk(ctx, msg);
+			case "/api/v1/player_status/bulk" -> BfApiError.ENDPOINT_REMOVED.response(ctx, msg);
 			case "/api/v1/ucd/clan_list" -> ucdClanList(ctx, msg);
 			case "/api/v1/ucd/player_exp_leaderboard" -> ucdPlayerExpLeaderboard(ctx, msg);
 			case "/private/bf_ucd_refresh" -> bfUcdRefresh(ctx, msg);
@@ -212,10 +215,10 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		BfCloudData data;
 		try {
-			data = connection.dataCache.cloudData.get()
+			data = connection.dataCache.cloudStats.get()
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
-			log.error("error while retrieving cloud data", e);
+			log.error("error while retrieving cloud stats", e);
 			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
 		} catch (TimeoutException e) {
 			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
@@ -365,10 +368,10 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 
 		ExpiryHolder<BfPlayerInventory> data;
 		try {
-			data = connection.dataCache.playerInventory.get(uuid)
+			data = connection.dataCache.inventoryMinimal.get(uuid)
 				.get(10, TimeUnit.SECONDS);
 		} catch (ExecutionException | InterruptedException e) {
-			log.error("error while retrieving player inventory", e);
+			log.error("error while retrieving minimal player inventory", e);
 			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
 		} catch (TimeoutException e) {
 			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
@@ -458,7 +461,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		}
 		UUID uuid = uuidResult.left();
 
-		ExpiryHolder<PlayerStatus> data;
+		ExpiryHolder<PublicPlayerStatus> data;
 		try {
 			data = connection.dataCache.playerStatus.get(uuid)
 				.get(10, TimeUnit.SECONDS);
@@ -473,7 +476,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			ctx, msg,
 			HttpResponseStatus.OK,
 			w -> Serialization.playerStatus(
-				w, data.value(), connection.dataCache,
+				w, data.value(),
 				Util.unchecked(w2 -> {
 					w2.name("player").beginObject();
 					Serialization.playerStub(w2, connection.dataCache, uuid);
@@ -512,7 +515,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		} catch (TimeoutException e) {
 			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
 		}
-		Map<UUID, PlayerStatus> playerStatuses = dataFutures.entrySet().stream()
+		Map<UUID, PublicPlayerStatus> playerStatuses = dataFutures.entrySet().stream()
 			.collect(Collectors.toMap(
 				Map.Entry::getKey,
 				e -> e.getValue().join().value()
@@ -522,9 +525,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			ctx, msg, HttpResponseStatus.OK,
 			w -> {
 				w.beginArray();
-				for (Map.Entry<UUID, PlayerStatus> entry : playerStatuses.entrySet()) {
+				for (Map.Entry<UUID, PublicPlayerStatus> entry : playerStatuses.entrySet()) {
 					Serialization.playerStatus(
-						w, entry.getValue(), connection.dataCache,
+						w, entry.getValue(),
 						Util.unchecked(w2 -> {
 							w2.name("player").beginObject();
 							Serialization.playerStub(w2, connection.dataCache, entry.getKey());

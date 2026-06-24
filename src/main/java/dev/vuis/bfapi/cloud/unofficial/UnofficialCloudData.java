@@ -135,7 +135,7 @@ public final class UnofficialCloudData {
 		log.info("requesting cloud data");
 		BfCloudData cloudData;
 		try {
-			cloudData = dataCache.cloudData.get().get(10, TimeUnit.SECONDS);
+			cloudData = dataCache.cloudStats.get().get(10, TimeUnit.SECONDS);
 		} catch (InterruptedException | ExecutionException e) {
 			log.error("ucd cloud data request failed", e);
 			refreshing.set(false);
@@ -161,7 +161,7 @@ public final class UnofficialCloudData {
 					d.getUsername(),
 					Util.getTotalExp(d.getPrestigeLevel(), d.getExp()),
 					d.getPrestigeLevel(),
-					Util.indexOf(cloudData.playerScores(), p -> p.left().equals(d.getUUID())) != -1,
+					Util.indexOf(cloudData.playerScores(), p -> p.uuid().equals(d.getUUID())).isPresent(),
 					d.getTimePlayed()
 				))
 				.toList()

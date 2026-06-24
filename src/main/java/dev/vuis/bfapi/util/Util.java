@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -158,12 +159,12 @@ public final class Util {
 		return data.getPrestigeLevel() > 0 || data.getExp() >= PRESTIGE_EXP;
 	}
 
-	public static <T> int indexOf(List<T> list, Predicate<T> filter) {
+	public static <T> OptionalInt indexOf(List<T> list, Predicate<T> filter) {
 		for (int i = 0; i < list.size(); i++) {
 			if (filter.test(list.get(i))) {
-				return i;
+				return OptionalInt.of(i);
 			}
 		}
-		return -1;
+		return OptionalInt.empty();
 	}
 }

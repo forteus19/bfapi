@@ -3,8 +3,8 @@ package dev.vuis.bfapi.cache;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import dev.vuis.bfapi.util.cache.ExpiryHolder;
-import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectBooleanPair;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import java.time.Duration;
 import java.time.Instant;
@@ -45,7 +45,7 @@ public class IdentifiableCacheHolder<T> {
 	public CompletableFuture<ExpiryHolder<T>> get(UUID uuid) {
 		var future = createFuture(uuid);
 
-		if (future.right()) {
+		if (future.rightBoolean()) {
 			request(uuid, false);
 		}
 
@@ -58,8 +58,9 @@ public class IdentifiableCacheHolder<T> {
 
 		for (UUID uuid : uuids) {
 			var future = createFuture(uuid);
+
 			futures.put(uuid, future.left());
-			if (future.right()) {
+			if (future.rightBoolean()) {
 				requestUuids.add(uuid);
 			}
 		}
@@ -69,10 +70,10 @@ public class IdentifiableCacheHolder<T> {
 		return futures;
 	}
 
-	private Pair<CompletableFuture<ExpiryHolder<T>>, Boolean> createFuture(UUID uuid) {
+	private ObjectBooleanPair<CompletableFuture<ExpiryHolder<T>>> createFuture(UUID uuid) {
 		ExpiryHolder<T> cached = cache.getIfPresent(uuid);
 		if (cached != null) {
-			return Pair.of(CompletableFuture.completedFuture(cached), false);
+			return ObjectBooleanPair.of(CompletableFuture.completedFuture(cached), false);
 		}
 
 		CompletableFuture<ExpiryHolder<T>> newFuture = new CompletableFuture<>();
@@ -80,10 +81,10 @@ public class IdentifiableCacheHolder<T> {
 
 		CompletableFuture<ExpiryHolder<T>> existing = pending.putIfAbsent(uuid, newFuture);
 		if (existing != null) {
-			return Pair.of(existing, false);
+			return ObjectBooleanPair.of(existing, false);
 		}
 
-		return Pair.of(newFuture, true);
+		return ObjectBooleanPair.of(newFuture, true);
 	}
 
 	public @Nullable ExpiryHolder<T> getIfPresent(UUID uuid) {

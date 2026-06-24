@@ -57,7 +57,7 @@ public final class ApiMain {
 
 		byte[] hardwareId = config.getBfHardwareId();
 		if (hardwareId.length != 32) {
-			log.warn("hardware ID is not 32 bytes (found {} bytes)", hardwareId.length);
+			log.warn("hardware ID is not 32 bytes (read {} bytes)", hardwareId.length);
 			log.warn("press enter to continue");
 			IO.readln();
 		}
@@ -101,7 +101,11 @@ public final class ApiMain {
 		);
 		connection.connect();
 
-		UnofficialCloudData ucd = new UnofficialCloudData(() -> loadPlayerList(config.getBfPlayerListPath()), connection.dataCache, config.isBfUcdWriteFilteredPlayers());
+		UnofficialCloudData ucd = new UnofficialCloudData(
+			() -> loadPlayerList(config.getBfPlayerListPath()),
+			connection.dataCache,
+			config.isBfUcdWriteFilteredPlayers()
+		);
 
 		inboundHandler.connectionReference.set(connection);
 		inboundHandler.ucdReference.set(ucd);
@@ -181,7 +185,7 @@ public final class ApiMain {
 					}
 
 					cloudDataRefreshFuture = REFRESH_EXECUTOR.scheduleAtFixedRate(
-						connection.dataCache.cloudData::request,
+						connection.dataCache.cloudStats::request,
 						0, 30, TimeUnit.SECONDS
 					);
 				}

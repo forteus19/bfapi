@@ -6,6 +6,7 @@ import com.boehmod.bflib.cloud.common.player.PlayerDataContext;
 import com.boehmod.bflib.cloud.common.player.PlayerGroup;
 import com.boehmod.bflib.cloud.common.player.PlayerRank;
 import com.boehmod.bflib.cloud.common.player.PunishmentType;
+import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
 import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.util.Util;
@@ -15,6 +16,7 @@ import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -22,9 +24,10 @@ import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 @Slf4j
-public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
+public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory, PlayerStatus> {
 	private @Nullable PlayerGroup group;
 	private int maxFriends = 0;
 	private final Map<PunishmentType, Integer> pastPunishments = new EnumMap<>(PunishmentType.class);
@@ -41,7 +44,6 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 
 		w.name("uuid").value(getUUID().toString());
 		w.name("username").value(getUsername());
-		w.name("mood").value(getMood().orElse(null));
 		w.name("class_exp").beginArray();
 		for (Int2IntMap.Entry entry : getClassExp().int2IntEntrySet()) {
 			w.beginObject();
@@ -99,29 +101,29 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 		if (dataCache != null) {
 			BfCloudData cloudData = null;
 			try {
-				cloudData = dataCache.cloudData.get().get(10, TimeUnit.SECONDS);
+				cloudData = dataCache.cloudStats.get().get(10, TimeUnit.SECONDS);
 			} catch (ExecutionException | InterruptedException | TimeoutException e) {
 				log.error("cloud data fetch for player serialization failed", e);
 			}
 			if (cloudData != null) {
 				w.name("sb");
-				int sbIndex = Util.indexOf(cloudData.playerScores(), p -> p.left().equals(getUUID()));
-				if (sbIndex == -1) {
-					w.nullValue();
-				} else {
+				OptionalInt sbIndex = Util.indexOf(cloudData.playerScores(), p -> p.uuid().equals(getUUID()));
+				if (sbIndex.isPresent()) {
 					w.beginObject();
-					w.name("rank").value(sbIndex + 1);
-					w.name("score").value(cloudData.playerScores().get(sbIndex).rightInt());
+					w.name("rank").value(sbIndex.orElseThrow() + 1);
+					w.name("score").value(cloudData.playerScores().get(sbIndex.orElseThrow()).score());
 					w.endObject();
+				} else {
+					w.nullValue();
 				}
 			}
 		}
 		if (ucd != null) {
 			w.name("ucd").beginObject();
 			w.name("exp_rank");
-			int expRank = Util.indexOf(ucd.getPlayerExpLeaderboard(), p -> getUUID().equals(p.uuid()));
-			if (expRank >= 0) {
-				w.value(expRank + 1);
+			OptionalInt expRankIndex = Util.indexOf(ucd.getPlayerExpLeaderboard(), p -> getUUID().equals(p.uuid()));
+			if (expRankIndex.isPresent()) {
+				w.value(expRankIndex.orElseThrow() + 1);
 			} else {
 				w.nullValue();
 				if (!ucd.isEmpty() && Util.hasPrestigeExp(this)) {
@@ -178,6 +180,13 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory> {
 	@Override
 	@SuppressWarnings("DataFlowIssue")
 	protected @NotNull BfPlayerInventory createInventory() {
+		// not used
+		return null;
+	}
+
+	@Override
+	@SuppressWarnings("DataFlowIssue")
+	protected @NonNull PlayerStatus createStatus() {
 		// not used
 		return null;
 	}

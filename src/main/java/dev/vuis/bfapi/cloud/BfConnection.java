@@ -12,7 +12,6 @@ import com.boehmod.bflib.cloud.encryption.AESDecryptionHandler;
 import com.boehmod.bflib.cloud.encryption.AESEncryptionHandler;
 import com.boehmod.bflib.cloud.encryption.EncryptionUtils;
 import com.boehmod.bflib.cloud.packet.IPacket;
-import com.boehmod.bflib.cloud.packet.common.profile.PacketEditMood;
 import com.boehmod.bflib.cloud.packet.primitives.ClientHeartBeatPacket;
 import com.boehmod.bflib.cloud.packet.primitives.ClientLoginPacket;
 import com.boehmod.bflib.cloud.packet.primitives.ClientLogoutPacket;
@@ -37,10 +36,10 @@ import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.PublicKey;
 import java.security.SecureRandom;
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Random;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -83,7 +82,7 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 
 	private final ScheduledExecutorService reconnectExecutor = Executors.newSingleThreadScheduledExecutor();
 
-	private final Set<BiConsumer<BfConnection, ConnectionStatus>> statusListeners = new HashSet<>();
+	private final List<BiConsumer<BfConnection, ConnectionStatus>> statusListeners = new ArrayList<>();
 
 	private final KeyPair clientKeyPair;
 	{
@@ -332,12 +331,12 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 		}
 
 		return switch (command) {
-			case "mood" -> {
-				if (args == null) {
-					yield "Missing args";
-				}
-				sendPacket(new PacketEditMood(args));
-				yield null;
+			case "ping" -> {
+				yield "pong";
+			}
+			case "purge" -> {
+				dataCache.purge();
+				yield "Cache purged";
 			}
 			case "reconnect" -> {
 				reconnect(true);

@@ -3,14 +3,14 @@ package dev.vuis.bfapi.data;
 import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.boehmod.bflib.cloud.common.MatchData;
 import com.boehmod.bflib.cloud.common.MatchSettings;
+import com.boehmod.bflib.cloud.common.mm.SearchGame;
 import com.boehmod.bflib.cloud.common.player.challenge.Challenge;
 import com.boehmod.bflib.cloud.common.player.challenge.ItemKillChallenge;
 import com.boehmod.bflib.cloud.common.player.challenge.KillCountChallenge;
 import com.boehmod.bflib.cloud.common.player.challenge.WeaponTypeKillChallenge;
-import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
+import com.boehmod.bflib.cloud.common.player.status.PublicPlayerStatus;
 import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.cloud.BfDataCache;
-import dev.vuis.bfapi.util.Util;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.UUID;
@@ -99,18 +99,23 @@ public final class Serialization {
 		return w;
 	}
 
-	public static @NotNull JsonWriter playerStatus(@NotNull JsonWriter w, @NotNull PlayerStatus status, @NotNull BfDataCache dataCache, @Nullable Consumer<JsonWriter> extra) throws IOException {
+	public static @NotNull JsonWriter playerStatus(@NotNull JsonWriter w, @NotNull PublicPlayerStatus status, @Nullable Consumer<JsonWriter> extra) throws IOException {
 		w.beginObject();
 
 		w.name("online").value(status.getOnlineStatus().isOnline());
 		w.name("party").value(status.getPartyStatus().name().toLowerCase(Locale.ROOT));
-		w.name("server").value(Util.ifNonNull(status.getServerOn(), UUID::toString));
-		w.name("match");
-		MatchData matchData = status.getMatchData();
-		if (matchData != null) {
-			matchData(w, matchData, dataCache);
-		} else {
-			w.nullValue();
+		w.name("in_game").value(status.isInGame());
+
+		SearchGame matchGame = status.getMatchGame();
+		if (matchGame != null) {
+			w.name("match").beginObject();
+
+			w.name("game").value(matchGame.name().toLowerCase(Locale.ROOT));
+			w.name("map").value(status.getMatchMapName());
+			w.name("players").value(status.getMatchPlayerCount());
+			w.name("max_players").value(status.getMatchMaxPlayerCount());
+
+			w.endObject();
 		}
 
 		if (extra != null) {

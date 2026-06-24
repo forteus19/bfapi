@@ -2,8 +2,7 @@ package dev.vuis.bfapi.cloud;
 
 import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.data.Serialization;
-import it.unimi.dsi.fastutil.Pair;
-import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
@@ -15,8 +14,8 @@ public record BfCloudData(
 	int usersOnline,
 	Map<String, Integer> gamePlayerCount,
 	Instant scoreboardResetTime,
-	List<ObjectIntImmutablePair<UUID>> playerScores,
-	List<ObjectIntImmutablePair<UUID>> clanScores
+	List<ScoreEntry> playerScores,
+	List<ScoreEntry> clanScores
 ) {
 	public @NotNull JsonWriter serialize(@NotNull JsonWriter w, @NotNull BfDataCache dataCache) throws IOException {
 		w.beginObject();
@@ -29,18 +28,18 @@ public record BfCloudData(
 		w.endObject();
 		w.name("scoreboard_reset_time").value(scoreboardResetTime.toString());
 		w.name("player_scores").beginArray();
-		for (Pair<UUID, Integer> playerScore : playerScores) {
+		for (ScoreEntry playerScore : playerScores) {
 			w.beginObject();
-			Serialization.playerStub(w, dataCache, playerScore.left());
-			w.name("score").value(playerScore.right());
+			Serialization.playerStub(w, dataCache, playerScore.uuid());
+			w.name("score").value(playerScore.score());
 			w.endObject();
 		}
 		w.endArray();
 		w.name("clan_scores").beginArray();
-		for (Pair<UUID, Integer> clanScore : clanScores) {
+		for (ScoreEntry clanScore : clanScores) {
 			w.beginObject();
-			Serialization.clanStub(w, dataCache, clanScore.left());
-			w.name("score").value(clanScore.right());
+			Serialization.clanStub(w, dataCache, clanScore.uuid());
+			w.name("score").value(clanScore.score());
 			w.endObject();
 		}
 		w.endArray();
@@ -48,5 +47,14 @@ public record BfCloudData(
 		w.endObject();
 
 		return w;
+	}
+
+	public record ScoreEntry(
+		UUID uuid,
+		int score
+	) {
+		public static ScoreEntry of(Object2IntMap.Entry<UUID> mapEntry) {
+			return new ScoreEntry(mapEntry.getKey(), mapEntry.getIntValue());
+		}
 	}
 }

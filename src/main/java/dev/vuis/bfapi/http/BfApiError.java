@@ -12,6 +12,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.GONE;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -21,6 +22,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.SERVICE_UNAVAILABLE
 public final class BfApiError {
 	public static final BfApiError CLOUD_DISCONNECTED = new BfApiError(SERVICE_UNAVAILABLE, "cloud_disconnected");
 	public static final BfApiError ENDPOINT_NOT_FOUND = new BfApiError(NOT_FOUND, "endpoint_not_found");
+	public static final BfApiError ENDPOINT_REMOVED = new BfApiError(GONE, "endpoint_removed");
 	public static final BfApiError INTERNAL_ERROR = new BfApiError(INTERNAL_SERVER_ERROR, "internal_error");
 	public static final BfApiError INVALID_INCLUDE_DETAILS = new BfApiError(BAD_REQUEST, "invalid_invalid_details");
 	public static final BfApiError INVALID_INCLUDE_UUID = new BfApiError(BAD_REQUEST, "invalid_include_uuid");

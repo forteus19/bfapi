@@ -2,7 +2,7 @@ package dev.vuis.bfapi.cloud;
 
 import com.boehmod.bflib.cloud.common.item.CloudItemStack;
 import com.boehmod.bflib.cloud.common.player.PlayerDataContext;
-import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
+import com.boehmod.bflib.cloud.common.player.status.PublicPlayerStatus;
 import com.boehmod.bflib.cloud.common.reward.AbstractItemRewardType;
 import com.boehmod.bflib.cloud.common.reward.ExpRewardType;
 import com.boehmod.bflib.cloud.common.reward.RewardType;
@@ -13,27 +13,22 @@ import com.boehmod.bflib.cloud.packet.common.PacketChatMessageFromCloud;
 import com.boehmod.bflib.cloud.packet.common.PacketClientMessagePopup;
 import com.boehmod.bflib.cloud.packet.common.PacketDailyReward;
 import com.boehmod.bflib.cloud.packet.common.PacketNotificationFromCloud;
-import com.boehmod.bflib.cloud.packet.common.friend.PacketFriendPoke;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedClanData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedCloudData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedInventory;
+import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedInventoryMinimal;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedItemDefault;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerDataSet;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerStatusSet;
 import com.boehmod.bflib.cloud.packet.common.server.PacketServerNotification;
 import com.boehmod.bflib.cloud.packet.primitives.CloudHeartBeatPacket;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonSyntaxException;
-import dev.vuis.bfapi.util.JsonUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import it.unimi.dsi.fastutil.Pair;
-import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +54,7 @@ public final class BfCloudPacketHandlers {
 		registerPacketHandler(PacketRequestedClanData.class, BfCloudPacketHandlers::requestedClanData);
 		registerPacketHandler(PacketRequestedCloudData.class, BfCloudPacketHandlers::requestedCloudData);
 		registerPacketHandler(PacketRequestedInventory.class, BfCloudPacketHandlers::requestedInventory);
+		registerPacketHandler(PacketRequestedInventoryMinimal.class, BfCloudPacketHandlers::requestedInventoryMinimal);
 		registerPacketHandler(PacketRequestedItemDefault.class, BfCloudPacketHandlers::requestedItemDefault);
 		registerPacketHandler(PacketRequestedPlayerData.class, BfCloudPacketHandlers::requestedPlayerData);
 		registerPacketHandler(PacketRequestedPlayerDataSet.class, BfCloudPacketHandlers::requestedPlayerDataSet);
@@ -102,14 +98,7 @@ public final class BfCloudPacketHandlers {
 	}
 
 	private static void notificationFromCloud(PacketNotificationFromCloud packet, BfConnection connection) {
-		String message = packet.message();
-
-		log.info("cloud notification: {}", message);
-
-		try {
-			handleNotification(JsonParser.parseString(message), connection);
-		} catch (JsonSyntaxException _) {
-		}
+		log.info("cloud notification: {}", packet.message());
 	}
 
 	private static void requestedClanData(PacketRequestedClanData packet, BfConnection connection) {
@@ -117,23 +106,30 @@ public final class BfCloudPacketHandlers {
 	}
 
 	private static void requestedCloudData(PacketRequestedCloudData packet, BfConnection connection) {
-		connection.dataCache.cloudData.complete(new BfCloudData(
+		connection.dataCache.cloudStats.complete(new BfCloudData(
 			packet.getUsersOnline(),
 			packet.getGamePlayerCount(),
 			Instant.ofEpochMilli(packet.getScoreboardResetTime()),
-			packet.getPlayerScores().object2IntEntrySet().stream()
-				.sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
-				.map(e -> new ObjectIntImmutablePair<>(e.getKey(), e.getIntValue()))
-				.toList(),
-			packet.getClanScores().object2IntEntrySet().stream()
-				.sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
-				.map(e -> new ObjectIntImmutablePair<>(e.getKey(), e.getIntValue()))
-				.toList()
+			createScoreEntryList(packet.getPlayerScores()),
+			createScoreEntryList(packet.getClanScores())
 		));
+	}
+
+	private static List<BfCloudData.ScoreEntry> createScoreEntryList(Object2IntMap<UUID> map) {
+		return map.object2IntEntrySet().stream()
+			.sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+			.map(BfCloudData.ScoreEntry::of)
+			.toList();
 	}
 
 	private static void requestedInventory(PacketRequestedInventory packet, BfConnection connection) {
 		connection.dataCache.playerInventory.supply(packet.uuid(), inventory -> inventory.onReceiveSection(packet.stacks(), packet.section()));
+	}
+
+	private static void requestedInventoryMinimal(PacketRequestedInventoryMinimal packet, BfConnection connection) {
+		BfPlayerInventory inventory = new BfPlayerInventory();
+		inventory.onReceiveMinimalStacks(packet.stacks());
+		connection.dataCache.inventoryMinimal.complete(packet.uuid(), inventory);
 	}
 
 	private static void requestedItemDefault(PacketRequestedItemDefault packet, BfConnection connection) {
@@ -151,62 +147,13 @@ public final class BfCloudPacketHandlers {
 	}
 
 	private static void requestedPlayerStatusSet(PacketRequestedPlayerStatusSet packet, BfConnection connection) {
-		for (Map.Entry<UUID, PlayerStatus> entry : packet.statusSet().entrySet()) {
+		for (Map.Entry<UUID, PublicPlayerStatus> entry : packet.statusSet().entrySet()) {
 			connection.dataCache.playerStatus.complete(entry.getKey(), entry.getValue());
 		}
 	}
 
 	private static void serverNotification(PacketServerNotification packet, BfConnection connection) {
 		log.info("server notification: {}", packet.message());
-	}
-
-	private static void handleNotification(JsonElement contentsElement, BfConnection connection) {
-		if (!contentsElement.isJsonObject()) {
-			return;
-		}
-		JsonObject contents = contentsElement.getAsJsonObject();
-
-		String translate = JsonUtil.getString(contents, "translate");
-		if (translate == null || !translate.equals("bf.cloud.notification.friends.poke.from")) {
-			return;
-		}
-
-		JsonArray with = JsonUtil.getArray(contents, "with");
-		if (with == null || with.size() != 2) {
-			return;
-		}
-
-		JsonObject senderObject = JsonUtil.getObject(with.get(0));
-		if (senderObject == null) {
-			return;
-		}
-		String senderName = JsonUtil.getString(senderObject, "text");
-		if (senderName == null) {
-			return;
-		}
-		UUID senderUuid = connection.getCommandUserUuid(senderName);
-		if (senderUuid == null) {
-			return;
-		}
-
-		JsonObject messageObject = JsonUtil.getObject(with.get(1));
-		if (messageObject == null) {
-			return;
-		}
-		String text = JsonUtil.getString(messageObject, "text");
-		if (text == null) {
-			return;
-		}
-
-		log.info("{} running command: {}", senderName, text);
-
-		String response = connection.handleCommand(text);
-		if (response != null) {
-			try {
-				connection.sendPacket(new PacketFriendPoke(senderUuid, response));
-			} catch (Exception _) {
-			}
-		}
 	}
 
 	private static void handlePlayerData(UUID uuid, PlayerDataContext context, byte[] data, BfConnection connection) {

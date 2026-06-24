@@ -2,7 +2,7 @@ package dev.vuis.bfapi.cloud;
 
 import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.boehmod.bflib.cloud.common.RequestType;
-import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
+import com.boehmod.bflib.cloud.common.player.status.PublicPlayerStatus;
 import com.boehmod.bflib.cloud.packet.common.PacketClientRequest;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -21,11 +21,12 @@ import org.jetbrains.annotations.Nullable;
 
 public class BfDataCache implements AutoCloseable {
 	public final IdentifiableCacheHolder<AbstractClanData> clanData;
-	public final SingletonCacheHolder<BfCloudData> cloudData;
+	public final SingletonCacheHolder<BfCloudData> cloudStats;
 	public final IdentifiableCacheHolder<Set<UUID>> playerInventoryDefaults;
 	public final IdentifiableCacheHolder<BfPlayerData> playerData;
 	public final AccumulatedCacheHolder<BfPlayerInventory> playerInventory;
-	public final IdentifiableCacheHolder<PlayerStatus> playerStatus;
+	public final IdentifiableCacheHolder<BfPlayerInventory> inventoryMinimal;
+	public final IdentifiableCacheHolder<PublicPlayerStatus> playerStatus;
 
 	private final Cache<UUID, String> playerNameCache = CacheBuilder.newBuilder()
 		.maximumSize(1024)
@@ -42,7 +43,7 @@ public class BfDataCache implements AutoCloseable {
 			Duration.ofMinutes(5),
 			this::handleClanDataCompleted
 		);
-		cloudData = new SingletonCacheHolder<>(
+		cloudStats = new SingletonCacheHolder<>(
 			singletonRequester(connection, RequestType.CLOUD_STATS)
 		);
 		playerInventoryDefaults = new IdentifiableCacheHolder<>(
@@ -58,6 +59,10 @@ public class BfDataCache implements AutoCloseable {
 			identifiableRequester(connection, RequestType.PLAYER_INVENTORY),
 			BfPlayerInventory::new,
 			Duration.ofMinutes(5)
+		);
+		inventoryMinimal = new IdentifiableCacheHolder<>(
+			identifiableRequester(connection, RequestType.INVENTORY_MINIMAL),
+			Duration.ofSeconds(90)
 		);
 		playerStatus = new IdentifiableCacheHolder<>(
 			identifiableRequester(connection, RequestType.PLAYER_STATUS),
@@ -105,15 +110,15 @@ public class BfDataCache implements AutoCloseable {
 
 	public void purge() {
 		clanData.purge();
-		cloudData.purge();
+		cloudStats.purge();
 		playerInventoryDefaults.purge();
 		playerData.purge();
 		playerInventory.purge();
+		inventoryMinimal.purge();
 		playerStatus.purge();
 	}
 
 	@Override
 	public void close() {
-		playerInventory.close();
 	}
 }

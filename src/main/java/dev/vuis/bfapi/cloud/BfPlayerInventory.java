@@ -9,7 +9,6 @@ import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.util.Util;
 import java.io.IOException;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Consumer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -53,7 +52,7 @@ public class BfPlayerInventory extends AbstractCloudInventory<BfPlayerData> {
 		if (includeDetails) {
 			CloudItemType type = item.getItemType();
 			w.name("name").value(
-				item.isDefault() && type != CloudItemType.ARMOR && type != CloudItemType.CARD ?
+				item.isDefault() && type != CloudItemType.CARD ?
 					item.getName() :
 					item.getDisplayName()
 			);
@@ -61,10 +60,6 @@ public class BfPlayerInventory extends AbstractCloudInventory<BfPlayerData> {
 			w.name("type").value(type.name().toLowerCase(Locale.ROOT));
 		}
 		w.name("mint").value(stack.getMint());
-		Optional<String> nameTag = stack.getNameTag();
-		if (nameTag.isPresent()) {
-			w.name("tag").value(nameTag.orElseThrow());
-		}
 
 		w.endObject();
 
