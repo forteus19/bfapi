@@ -4,6 +4,7 @@ import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.boehmod.bflib.cloud.common.MatchData;
 import com.boehmod.bflib.cloud.common.MatchSettings;
 import com.boehmod.bflib.cloud.common.mm.SearchGame;
+import com.boehmod.bflib.cloud.common.mm.report.MatchSummary;
 import com.boehmod.bflib.cloud.common.player.challenge.Challenge;
 import com.boehmod.bflib.cloud.common.player.challenge.ItemKillChallenge;
 import com.boehmod.bflib.cloud.common.player.challenge.KillCountChallenge;
@@ -12,6 +13,7 @@ import com.boehmod.bflib.cloud.common.player.status.PublicPlayerStatus;
 import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.cloud.BfDataCache;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -93,6 +95,29 @@ public final class Serialization {
 			w.endObject();
 		}
 		w.endArray();
+
+		w.endObject();
+
+		return w;
+	}
+
+	public static @NotNull JsonWriter matchSummary(@NotNull JsonWriter w, @NotNull MatchSummary summary) throws IOException {
+		w.beginObject();
+
+		w.name("match_id").value(summary.matchId().toString());
+		w.name("game").value(summary.gameMode().getId());
+		w.name("map").value(summary.mapName());
+		w.name("environment").value(summary.environment());
+		w.name("ended_at").value(Instant.ofEpochMilli(summary.endedAtEpochMillis()).toString());
+		w.name("duration_seconds").value(summary.durationSeconds());
+		w.name("winner_team").value(summary.winnerTeam());
+		w.name("player_team").value(summary.playerTeam());
+		w.name("result").value(summary.result().name().toLowerCase(Locale.ROOT));
+		w.name("placement").value(summary.placement());
+		w.name("kills").value(summary.kills());
+		w.name("deaths").value(summary.deaths());
+		w.name("assists").value(summary.assists());
+		w.name("score").value(summary.score());
 
 		w.endObject();
 

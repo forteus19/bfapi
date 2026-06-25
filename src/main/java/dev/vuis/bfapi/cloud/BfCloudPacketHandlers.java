@@ -21,6 +21,7 @@ import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedItemDefault
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerDataSet;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerStatusSet;
+import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedRecentMatches;
 import com.boehmod.bflib.cloud.packet.common.server.PacketServerNotification;
 import com.boehmod.bflib.cloud.packet.primitives.CloudHeartBeatPacket;
 import io.netty.buffer.ByteBuf;
@@ -59,6 +60,7 @@ public final class BfCloudPacketHandlers {
 		registerPacketHandler(PacketRequestedPlayerData.class, BfCloudPacketHandlers::requestedPlayerData);
 		registerPacketHandler(PacketRequestedPlayerDataSet.class, BfCloudPacketHandlers::requestedPlayerDataSet);
 		registerPacketHandler(PacketRequestedPlayerStatusSet.class, BfCloudPacketHandlers::requestedPlayerStatusSet);
+		registerPacketHandler(PacketRequestedRecentMatches.class, BfCloudPacketHandlers::requestedRecentMatches);
 	}
 
 	public static <P extends IPacket> void registerPacketHandler(Class<P> packetClass, IPacketHandlerFunction<P, BfConnection> packetHandler) {
@@ -150,6 +152,10 @@ public final class BfCloudPacketHandlers {
 		for (Map.Entry<UUID, PublicPlayerStatus> entry : packet.statusSet().entrySet()) {
 			connection.dataCache.playerStatus.complete(entry.getKey(), entry.getValue());
 		}
+	}
+
+	private static void requestedRecentMatches(PacketRequestedRecentMatches packet, BfConnection connection) {
+		connection.dataCache.playerMatches.complete(packet.player(), packet.matches());
 	}
 
 	private static void serverNotification(PacketServerNotification packet, BfConnection connection) {

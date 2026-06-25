@@ -2,6 +2,7 @@ package dev.vuis.bfapi.cloud;
 
 import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.boehmod.bflib.cloud.common.RequestType;
+import com.boehmod.bflib.cloud.common.mm.report.MatchSummary;
 import com.boehmod.bflib.cloud.common.player.status.PublicPlayerStatus;
 import com.boehmod.bflib.cloud.packet.common.PacketClientRequest;
 import com.google.common.cache.Cache;
@@ -13,6 +14,7 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectList;
 import java.time.Duration;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -20,13 +22,14 @@ import java.util.function.Consumer;
 import org.jetbrains.annotations.Nullable;
 
 public class BfDataCache implements AutoCloseable {
-	public final IdentifiableCacheHolder<AbstractClanData> clanData;
-	public final SingletonCacheHolder<BfCloudData> cloudStats;
-	public final IdentifiableCacheHolder<Set<UUID>> playerInventoryDefaults;
 	public final IdentifiableCacheHolder<BfPlayerData> playerData;
 	public final AccumulatedCacheHolder<BfPlayerInventory> playerInventory;
-	public final IdentifiableCacheHolder<BfPlayerInventory> inventoryMinimal;
+	public final SingletonCacheHolder<BfCloudData> cloudStats;
+	public final IdentifiableCacheHolder<Set<UUID>> playerInventoryDefaults;
+	public final IdentifiableCacheHolder<AbstractClanData> clanData;
 	public final IdentifiableCacheHolder<PublicPlayerStatus> playerStatus;
+	public final IdentifiableCacheHolder<BfPlayerInventory> inventoryMinimal;
+	public final IdentifiableCacheHolder<List<MatchSummary>> playerMatches;
 
 	private final Cache<UUID, String> playerNameCache = CacheBuilder.newBuilder()
 		.maximumSize(1024)
@@ -38,18 +41,6 @@ public class BfDataCache implements AutoCloseable {
 		.build();
 
 	public BfDataCache(BfConnection connection) {
-		clanData = new IdentifiableCacheHolder<>(
-			identifiableRequester(connection, RequestType.CLAN_DATA),
-			Duration.ofMinutes(5),
-			this::handleClanDataCompleted
-		);
-		cloudStats = new SingletonCacheHolder<>(
-			singletonRequester(connection, RequestType.CLOUD_STATS)
-		);
-		playerInventoryDefaults = new IdentifiableCacheHolder<>(
-			identifiableRequester(connection, RequestType.PLAYER_INVENTORY_DEFAULTS),
-			Duration.ofMinutes(5)
-		);
 		playerData = new IdentifiableCacheHolder<>(
 			identifiableRequester(connection, RequestType.PLAYER_DATA),
 			Duration.ofSeconds(90),
@@ -60,13 +51,29 @@ public class BfDataCache implements AutoCloseable {
 			BfPlayerInventory::new,
 			Duration.ofMinutes(5)
 		);
-		inventoryMinimal = new IdentifiableCacheHolder<>(
-			identifiableRequester(connection, RequestType.INVENTORY_MINIMAL),
-			Duration.ofSeconds(90)
+		cloudStats = new SingletonCacheHolder<>(
+			singletonRequester(connection, RequestType.CLOUD_STATS)
+		);
+		playerInventoryDefaults = new IdentifiableCacheHolder<>(
+			identifiableRequester(connection, RequestType.PLAYER_INVENTORY_DEFAULTS),
+			Duration.ofMinutes(5)
+		);
+		clanData = new IdentifiableCacheHolder<>(
+			identifiableRequester(connection, RequestType.CLAN_DATA),
+			Duration.ofMinutes(5),
+			this::handleClanDataCompleted
 		);
 		playerStatus = new IdentifiableCacheHolder<>(
 			identifiableRequester(connection, RequestType.PLAYER_STATUS),
 			Duration.ofSeconds(30)
+		);
+		inventoryMinimal = new IdentifiableCacheHolder<>(
+			identifiableRequester(connection, RequestType.INVENTORY_MINIMAL),
+			Duration.ofSeconds(90)
+		);
+		playerMatches = new IdentifiableCacheHolder<>(
+			identifiableRequester(connection, RequestType.PLAYER_MATCHES),
+			Duration.ofMinutes(5)
 		);
 	}
 
@@ -109,13 +116,14 @@ public class BfDataCache implements AutoCloseable {
 	}
 
 	public void purge() {
-		clanData.purge();
-		cloudStats.purge();
-		playerInventoryDefaults.purge();
 		playerData.purge();
 		playerInventory.purge();
-		inventoryMinimal.purge();
+		cloudStats.purge();
+		playerInventoryDefaults.purge();
+		clanData.purge();
 		playerStatus.purge();
+		inventoryMinimal.purge();
+		playerMatches.purge();
 	}
 
 	@Override

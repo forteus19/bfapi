@@ -1,6 +1,7 @@
 package dev.vuis.bfapi.http;
 
 import com.boehmod.bflib.cloud.common.AbstractClanData;
+import com.boehmod.bflib.cloud.common.mm.report.MatchSummary;
 import com.boehmod.bflib.cloud.common.player.status.PublicPlayerStatus;
 import dev.vuis.bfapi.cloud.BfCloudData;
 import dev.vuis.bfapi.cloud.BfConnection;
@@ -71,6 +72,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			case "/api/v1/player_inventory" -> playerInventory(ctx, msg, qs);
 //			case "/api/v1/player_inventory/equipped" -> playerInventoryEquipped(ctx, msg, qs);
 			case "/api/v1/player_inventory/equipped" -> BfApiError.ENDPOINT_REMOVED.response(ctx, msg);
+			case "/api/v1/player_matches" -> playerMatches(ctx, msg, qs);
 //			case "/api/v1/player_status" -> playerStatus(ctx, msg, qs);
 			case "/api/v1/player_status" -> BfApiError.ENDPOINT_REMOVED.response(ctx, msg);
 //			case "/api/v1/player_status/bulk" -> playerStatusBulk(ctx, msg);
@@ -435,6 +437,59 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 				w.name("player").beginObject();
 				Serialization.playerStub(w, connection.dataCache, uuid);
 				w.endObject();
+				w.endObject();
+			}
+		);
+		if (data.expires() != null) {
+			Responses.cacheHeaders(response, data.expires());
+		}
+		return response;
+	}
+
+	private HttpResponse playerMatches(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+		BfConnection connection = connectionReference.get();
+
+		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
+		if (methodResponse != null) {
+			return methodResponse;
+		}
+		if (connection == null || !connection.isConnectedAndVerified()) {
+			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
+		}
+
+		Pair<UUID, BfApiError> uuidResult = uuidFromParams(qs);
+		if (uuidResult.right() != null) {
+			return uuidResult.right().response(ctx, msg);
+		}
+		UUID uuid = uuidResult.left();
+
+		ExpiryHolder<List<MatchSummary>> data;
+		try {
+			data = connection.dataCache.playerMatches.get(uuid)
+				.get(10, TimeUnit.SECONDS);
+		} catch (ExecutionException | InterruptedException e) {
+			log.error("error while retrieving player status", e);
+			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
+		} catch (TimeoutException e) {
+			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
+		}
+
+		FullHttpResponse response = Responses.json(
+			ctx, msg,
+			HttpResponseStatus.OK,
+			w -> {
+				w.beginObject();
+
+				w.name("matches").beginArray();
+				for (MatchSummary summary : data.value()) {
+					Serialization.matchSummary(w, summary);
+				}
+				w.endArray();
+
+				w.name("player").beginObject();
+				Serialization.playerStub(w, connection.dataCache, uuid);
+				w.endObject();
+
 				w.endObject();
 			}
 		);
