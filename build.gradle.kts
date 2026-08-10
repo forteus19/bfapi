@@ -1,27 +1,25 @@
 plugins {
-    java
-    application
+    id("java")
+    id("application")
+    id("io.freefair.lombok") version "9.5.0"
 }
 
 group = "dev.vuis"
 version = "1.0-SNAPSHOT"
 
-val blockfrontModVersion: String by project
-val blockfrontLibVersion: String by project
+val blockfrontModVersion = project.property("blockfrontModVersion")
+val blockfrontLibVersion = project.property("blockfrontLibVersion")
 val extractedDir = layout.buildDirectory.dir("extracted")
+
+val outerJar = configurations.create("outerJar")
 
 repositories {
     maven("https://api.modrinth.com/maven")
     mavenCentral()
 }
 
-configurations {
-    create("outerJar")
-}
-
 dependencies {
-    "outerJar"("maven.modrinth:blockfront:${blockfrontModVersion}")
-    implementation(files("build/extracted/blockfront-library.jar"))
+    outerJar("maven.modrinth:blockfront:${blockfrontModVersion}")
 
     compileOnly("org.jetbrains:annotations:26.0.2-1")
 
@@ -38,14 +36,8 @@ dependencies {
 
 //    runtimeOnly("org.xerial:sqlite-jdbc:3.53.1.0")
 
-    compileOnly("org.projectlombok:lombok:1.18.42")
-    annotationProcessor("org.projectlombok:lombok:1.18.42")
-
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-
-    testCompileOnly("org.projectlombok:lombok:1.18.42")
-    testAnnotationProcessor("org.projectlombok:lombok:1.18.42")
 }
 
 tasks.test {
@@ -62,26 +54,30 @@ java {
     }
 }
 
-tasks.register<Copy>("extractInnerJar") {
-    dependsOn(configurations["outerJar"])
-    
-    val outerJar = configurations["outerJar"].resolve().firstOrNull()
-    if (outerJar != null) {
-        from(zipTree(outerJar))
-        include("META-INF/jarjar/com.boehmod.blockfront.BlockFrontLibrary-${blockfrontLibVersion}.jar")
-        into(layout.buildDirectory.dir("extracted"))
-        eachFile {
-            path = name
-        }
-        rename(".*", "blockfront-library.jar")
+val extractBlockfrontLibraryTask = tasks.register<Copy>("extractBlockfrontLibrary") {
+    dependsOn(outerJar)
+
+    from(zipTree(outerJar.resolve().first()))
+    include("META-INF/jarjar/com.boehmod.blockfront.BlockFrontLibrary-${blockfrontLibVersion}.jar")
+    into(extractedDir)
+    eachFile {
+        path = name
     }
-    outputs.dir(layout.buildDirectory.dir("extracted"))
+    rename(".*", "blockfront-library.jar")
 }
 
-tasks.compileJava {
-    dependsOn("extractInnerJar")
+val blockfrontLibrary = files(
+    extractBlockfrontLibraryTask.map {
+        fileTree(it.destinationDir) {
+            include("*.jar")
+        }
+    }
+)
+
+dependencies {
+    implementation(blockfrontLibrary)
 }
 
 tasks.clean {
-    delete(layout.buildDirectory.dir("extracted"))
+    delete(extractedDir)
 }

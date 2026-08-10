@@ -50,7 +50,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @ChannelHandler.Sharable
 public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
-	private static final int MAX_BULK_SIZE = 48;
+	private static final int MAX_BULK_SIZE = 60;
 
 	public final AtomicReference<BfConnection> connectionReference = new AtomicReference<>();
 	public final AtomicReference<UnofficialCloudData> ucdReference = new AtomicReference<>();

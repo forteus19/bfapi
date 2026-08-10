@@ -94,7 +94,7 @@ public final class ApiMain {
 			config.getBfCloudAddress(),
 			config.getBfVersion(),
 			config.getBfVersionHash(),
-			config.getBfHardwareId(),
+			hardwareId,
 			authManager,
 			config.getHttpUserAgent(),
 			createCommandUserRetriever(config)

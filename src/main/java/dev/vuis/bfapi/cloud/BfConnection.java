@@ -114,7 +114,6 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 		String userAgent,
 		Function<String, UUID> commandUserRetriever
 	) {
-		super(30 * 20);
 		this.address = address;
 		this.version = version;
 		this.versionHash = versionHash;
@@ -189,7 +188,7 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 		ChannelPipeline pipeline = channelOrThrow().pipeline();
 		pipeline.addAfter(
 			"frameDecoder", "decryption",
-			Util.apply(new AESDecryptionHandler(secretKey), AESDecryptionHandler::activateDecryption)
+			Util.apply(new AESDecryptionHandler(secretKey, false), AESDecryptionHandler::activateDecryption)
 		);
 		pipeline.addAfter(
 			"frameEncoder", "encryption",
@@ -421,12 +420,17 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 
 	@Override
 	public void sendPacket(@NotNull IPacket packet) {
-		channelOrThrow().writeAndFlush(packet);
+		writeAndFlush(channelOrThrow(), packet);
+	}
+
+	@Override
+	protected void onSendFailure(@NotNull IPacket packet, @NotNull Throwable throwable) {
+		log.error("failed to send packet: {}", packet.getPacketIdentifier().identifier());
 	}
 
 	@Override
 	public <T extends IPacket> void onIllegalPacket(@NotNull T packet, @NotNull ConnectionType actualType, @NotNull ConnectionType expectedType) {
-		log.error("illegal packet {} (expected: {}, actual: {})", packet.getClass().getSimpleName(), expectedType, actualType);
+		log.error("illegal packet {} (expected: {}, actual: {})", packet.getPacketIdentifier().identifier(), expectedType, actualType);
 	}
 
 	@Override

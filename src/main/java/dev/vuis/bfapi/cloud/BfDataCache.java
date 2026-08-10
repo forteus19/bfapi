@@ -22,14 +22,14 @@ import java.util.function.Consumer;
 import org.jetbrains.annotations.Nullable;
 
 public class BfDataCache implements AutoCloseable {
-	public final IdentifiableCacheHolder<BfPlayerData> playerData;
-	public final AccumulatedCacheHolder<BfPlayerInventory> playerInventory;
+	public final IdentifiableCacheHolder<UUID, BfPlayerData> playerData;
+	public final AccumulatedCacheHolder<UUID, BfPlayerInventory> playerInventory;
 	public final SingletonCacheHolder<BfCloudData> cloudStats;
-	public final IdentifiableCacheHolder<Set<UUID>> playerInventoryDefaults;
-	public final IdentifiableCacheHolder<AbstractClanData> clanData;
-	public final IdentifiableCacheHolder<PublicPlayerStatus> playerStatus;
-	public final IdentifiableCacheHolder<BfPlayerInventory> inventoryMinimal;
-	public final IdentifiableCacheHolder<List<MatchSummary>> playerMatches;
+	public final IdentifiableCacheHolder<UUID, Set<UUID>> playerInventoryDefaults;
+	public final IdentifiableCacheHolder<UUID, AbstractClanData> clanData;
+	public final IdentifiableCacheHolder<UUID, PublicPlayerStatus> playerStatus;
+	public final IdentifiableCacheHolder<UUID, BfPlayerInventory> inventoryMinimal;
+	public final IdentifiableCacheHolder<UUID, List<MatchSummary>> playerMatches;
 
 	private final Cache<UUID, String> playerNameCache = CacheBuilder.newBuilder()
 		.maximumSize(1024)

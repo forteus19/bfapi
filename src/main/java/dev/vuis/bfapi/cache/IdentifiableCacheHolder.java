@@ -10,7 +10,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
@@ -19,20 +18,20 @@ import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class IdentifiableCacheHolder<T> {
-	protected final @NotNull Consumer<Set<UUID>> requester;
+public class IdentifiableCacheHolder<K, V> {
+	protected final @NotNull Consumer<Set<K>> requester;
 	protected final @NotNull Duration lifetime;
-	private final @Nullable BiConsumer<UUID, T> completeListener;
+	private final @Nullable BiConsumer<K, V> completeListener;
 
-	protected final @NotNull Cache<UUID, ExpiryHolder<T>> cache;
+	protected final @NotNull Cache<K, ExpiryHolder<V>> cache;
 
-	protected final @NotNull Map<UUID, CompletableFuture<ExpiryHolder<T>>> pending = new ConcurrentHashMap<>();
+	protected final @NotNull Map<K, CompletableFuture<ExpiryHolder<V>>> pending = new ConcurrentHashMap<>();
 
-	public IdentifiableCacheHolder(@NotNull Consumer<Set<UUID>> requester, @NotNull Duration lifetime) {
+	public IdentifiableCacheHolder(@NotNull Consumer<Set<K>> requester, @NotNull Duration lifetime) {
 		this(requester, lifetime, null);
 	}
 
-	public IdentifiableCacheHolder(@NotNull Consumer<Set<UUID>> requester, @NotNull Duration lifetime, @Nullable BiConsumer<UUID, T> completeListener) {
+	public IdentifiableCacheHolder(@NotNull Consumer<Set<K>> requester, @NotNull Duration lifetime, @Nullable BiConsumer<K, V> completeListener) {
 		this.requester = requester;
 		this.lifetime = lifetime;
 		this.completeListener = completeListener;
@@ -42,44 +41,44 @@ public class IdentifiableCacheHolder<T> {
 			.build();
 	}
 
-	public CompletableFuture<ExpiryHolder<T>> get(UUID uuid) {
-		var future = createFuture(uuid);
+	public CompletableFuture<ExpiryHolder<V>> get(K key) {
+		var future = createFuture(key);
 
 		if (future.rightBoolean()) {
-			request(uuid, false);
+			request(key, false);
 		}
 
 		return future.left();
 	}
 
-	public Map<UUID, CompletableFuture<ExpiryHolder<T>>> get(Set<UUID> uuids) {
-		Map<UUID, CompletableFuture<ExpiryHolder<T>>> futures = new Object2ObjectOpenHashMap<>(uuids.size());
-		Set<UUID> requestUuids = new ObjectOpenHashSet<>();
+	public Map<K, CompletableFuture<ExpiryHolder<V>>> get(Set<K> keys) {
+		Map<K, CompletableFuture<ExpiryHolder<V>>> futures = new Object2ObjectOpenHashMap<>(keys.size());
+		Set<K> requestKeys = new ObjectOpenHashSet<>();
 
-		for (UUID uuid : uuids) {
-			var future = createFuture(uuid);
+		for (K key : keys) {
+			var future = createFuture(key);
 
-			futures.put(uuid, future.left());
+			futures.put(key, future.left());
 			if (future.rightBoolean()) {
-				requestUuids.add(uuid);
+				requestKeys.add(key);
 			}
 		}
 
-		request(requestUuids, false);
+		request(requestKeys, false);
 
 		return futures;
 	}
 
-	private ObjectBooleanPair<CompletableFuture<ExpiryHolder<T>>> createFuture(UUID uuid) {
-		ExpiryHolder<T> cached = cache.getIfPresent(uuid);
+	private ObjectBooleanPair<CompletableFuture<ExpiryHolder<V>>> createFuture(K key) {
+		ExpiryHolder<V> cached = cache.getIfPresent(key);
 		if (cached != null) {
 			return ObjectBooleanPair.of(CompletableFuture.completedFuture(cached), false);
 		}
 
-		CompletableFuture<ExpiryHolder<T>> newFuture = new CompletableFuture<>();
-		newFuture.whenComplete((_, _) -> pending.remove(uuid));
+		CompletableFuture<ExpiryHolder<V>> newFuture = new CompletableFuture<>();
+		newFuture.whenComplete((_, _) -> pending.remove(key));
 
-		CompletableFuture<ExpiryHolder<T>> existing = pending.putIfAbsent(uuid, newFuture);
+		CompletableFuture<ExpiryHolder<V>> existing = pending.putIfAbsent(key, newFuture);
 		if (existing != null) {
 			return ObjectBooleanPair.of(existing, false);
 		}
@@ -87,46 +86,46 @@ public class IdentifiableCacheHolder<T> {
 		return ObjectBooleanPair.of(newFuture, true);
 	}
 
-	public @Nullable ExpiryHolder<T> getIfPresent(UUID uuid) {
-		return cache.getIfPresent(uuid);
+	public @Nullable ExpiryHolder<V> getIfPresent(K key) {
+		return cache.getIfPresent(key);
 	}
 
-	public void request(UUID uuid, boolean override) {
-		if (override || !cache.asMap().containsKey(uuid)) {
-			requester.accept(Set.of(uuid));
+	public void request(K key, boolean override) {
+		if (override || !cache.asMap().containsKey(key)) {
+			requester.accept(Set.of(key));
 		}
 	}
 
-	public void request(Set<UUID> uuids, boolean override) {
-		if (uuids.isEmpty()) {
+	public void request(Set<K> keys, boolean override) {
+		if (keys.isEmpty()) {
 			return;
 		}
 
-		Map<UUID, ExpiryHolder<T>> cacheMap = cache.asMap();
+		Map<K, ExpiryHolder<V>> cacheMap = cache.asMap();
 
-		Set<UUID> filteredUuids = override ? uuids : uuids.stream().filter(u -> !cacheMap.containsKey(u)).collect(Collectors.toSet());
-		if (!filteredUuids.isEmpty()) {
-			requester.accept(filteredUuids);
+		Set<K> filteredKeys = override ? keys : keys.stream().filter(u -> !cacheMap.containsKey(u)).collect(Collectors.toSet());
+		if (!filteredKeys.isEmpty()) {
+			requester.accept(filteredKeys);
 		}
 	}
 
-	public void complete(UUID uuid, T data) {
-		ExpiryHolder<T> holder = new ExpiryHolder<>(data, Instant.now().plus(lifetime));
+	public void complete(K key, V value) {
+		ExpiryHolder<V> holder = new ExpiryHolder<>(value, Instant.now().plus(lifetime));
 
-		CompletableFuture<ExpiryHolder<T>> future = pending.get(uuid);
+		CompletableFuture<ExpiryHolder<V>> future = pending.get(key);
 		if (future != null) {
 			future.complete(holder);
 		}
 
-		cache.put(uuid, holder);
+		cache.put(key, holder);
 
 		if (completeListener != null) {
-			completeListener.accept(uuid, data);
+			completeListener.accept(key, value);
 		}
 	}
 
-	public void complete(UUID uuid, Exception e) {
-		CompletableFuture<ExpiryHolder<T>> future = pending.get(uuid);
+	public void complete(K key, Exception e) {
+		CompletableFuture<ExpiryHolder<V>> future = pending.get(key);
 		if (future != null) {
 			future.completeExceptionally(e);
 		}
@@ -134,7 +133,7 @@ public class IdentifiableCacheHolder<T> {
 
 	public synchronized void purge() {
 		cache.invalidateAll();
-		for (CompletableFuture<ExpiryHolder<T>> future : pending.values()) {
+		for (CompletableFuture<ExpiryHolder<V>> future : pending.values()) {
 			future.completeExceptionally(new PurgeException());
 		}
 		pending.clear();

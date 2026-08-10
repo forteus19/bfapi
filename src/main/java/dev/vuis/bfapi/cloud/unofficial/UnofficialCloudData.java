@@ -1,5 +1,6 @@
 package dev.vuis.bfapi.cloud.unofficial;
 
+import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.google.common.collect.Lists;
 import com.google.gson.stream.JsonWriter;
 import dev.vuis.bfapi.cloud.BfCloudData;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -46,7 +48,7 @@ public final class UnofficialCloudData {
 	private final AtomicReference<Instant> lastRefreshed = new AtomicReference<>();
 
 	private final AtomicReference<Set<UUID>> playerList = new AtomicReference<>(Set.of());
-	private final AtomicReference<Set<UUID>> clanList = new AtomicReference<>(Set.of());
+	private final AtomicReference<Map<UUID, AbstractClanData>> clanLookup = new AtomicReference<>(Map.of());
 	private final AtomicReference<List<Player>> playerExpLeaderboard = new AtomicReference<>(List.of());
 
 	public boolean isEmpty() {
@@ -75,50 +77,15 @@ public final class UnofficialCloudData {
 		}
 
 		log.info("starting UCD refresh");
-		new Thread(this::refresh, "UCD refresh").start();
+		new Thread(() -> {
+			refresh();
+			refreshing.set(false);
+		}, "UCD refresh").start();
 		return true;
 	}
 
 	private void refresh() {
-		Set<UUID> playerListGet = playerList.get();
-
-		List<List<UUID>> uuidChunks = Lists.partition(new ArrayList<>(playerListGet), REQUEST_CHUNK_SIZE);
-		log.info("requesting data for {} players ({} chunks)", playerListGet.size(), uuidChunks.size());
-
-		List<BfPlayerData> playerDatas = new ArrayList<>(playerListGet.size());
-
-		for (int i = 0; i < uuidChunks.size(); i++) {
-			try {
-				Thread.sleep(REQUEST_PADDING_TIME);
-			} catch (InterruptedException _) {
-			}
-
-			List<UUID> chunk = uuidChunks.get(i);
-			log.info("getting chunk {}/{}", i + 1, uuidChunks.size());
-
-			var listDataFutures = dataCache.playerData.get(new HashSet<>(chunk));
-			try {
-				CompletableFuture.allOf(listDataFutures.values().toArray(new CompletableFuture[0])).get(5, TimeUnit.MINUTES);
-			} catch (InterruptedException | ExecutionException e) {
-				log.error("ucd player list request failed", e);
-				refreshing.set(false);
-				return;
-			} catch (TimeoutException e) {
-				log.error("ucd player list request timed out");
-				refreshing.set(false);
-				return;
-			}
-
-			playerDatas.addAll(listDataFutures.values().stream()
-				.map(f -> f.join().value())
-				.filter(Util::hasPrestigeExp)
-				.toList());
-
-			int numFiltered = chunk.size() - playerDatas.size();
-			if (numFiltered > 0) {
-				log.warn("{} players were filtered out", numFiltered);
-			}
-		}
+		List<BfPlayerData> playerDatas = fetchPlayerDatas(playerList.get());
 
 		if (writeFilteredPlayers) {
 			log.info("writing filtered players");
@@ -138,20 +105,11 @@ public final class UnofficialCloudData {
 			cloudData = dataCache.cloudStats.get().get(10, TimeUnit.SECONDS);
 		} catch (InterruptedException | ExecutionException e) {
 			log.error("ucd cloud data request failed", e);
-			refreshing.set(false);
 			return;
 		} catch (TimeoutException e) {
 			log.error("ucd cloud data request timed out");
-			refreshing.set(false);
 			return;
 		}
-
-		clanList.set(
-			playerDatas.stream()
-				.map(BfPlayerData::getClanId)
-				.filter(Objects::nonNull)
-				.collect(Collectors.toUnmodifiableSet())
-		);
 
 		playerExpLeaderboard.set(
 			playerDatas.stream()
@@ -167,9 +125,97 @@ public final class UnofficialCloudData {
 				.toList()
 		);
 
-		refreshing.set(false);
+		Set<UUID> clans = playerDatas.stream()
+			.map(BfPlayerData::getClanId)
+			.filter(Objects::nonNull)
+			.collect(Collectors.toUnmodifiableSet());
+
+		List<AbstractClanData> clanDatas = fetchClanDatas(clans);
+
+		clanLookup.set(
+			clanDatas.stream()
+				.collect(Collectors.toUnmodifiableMap(
+					AbstractClanData::getClanId,
+					clan -> clan
+				))
+		);
+
 		lastRefreshed.set(Instant.now());
-		log.info("refresh finished");
+		log.info("refresh finished successfully");
+	}
+
+	private List<BfPlayerData> fetchPlayerDatas(Set<UUID> players) {
+		List<List<UUID>> uuidChunks = Lists.partition(new ArrayList<>(players), REQUEST_CHUNK_SIZE);
+		log.info("requesting data for {} players ({} chunks)", players.size(), uuidChunks.size());
+
+		List<BfPlayerData> playerDatas = new ArrayList<>(players.size());
+
+		for (int i = 0; i < uuidChunks.size(); i++) {
+			try {
+				Thread.sleep(REQUEST_PADDING_TIME);
+			} catch (InterruptedException _) {
+			}
+
+			List<UUID> chunk = uuidChunks.get(i);
+			log.info("getting chunk {}/{}", i + 1, uuidChunks.size());
+
+			var listDataFutures = dataCache.playerData.get(new HashSet<>(chunk));
+			try {
+				CompletableFuture.allOf(listDataFutures.values().toArray(new CompletableFuture[0])).get(5, TimeUnit.MINUTES);
+			} catch (InterruptedException | ExecutionException e) {
+				log.error("ucd player request failed", e);
+				continue;
+			} catch (TimeoutException e) {
+				log.error("ucd player request timed out");
+				continue;
+			}
+
+			playerDatas.addAll(listDataFutures.values().stream()
+				.map(f -> f.join().value())
+				.filter(Util::hasPrestigeExp)
+				.toList());
+
+			int numFiltered = chunk.size() - playerDatas.size();
+			if (numFiltered > 0) {
+				log.warn("{} players were filtered out", numFiltered);
+			}
+		}
+
+		return playerDatas;
+	}
+
+	private List<AbstractClanData> fetchClanDatas(Set<UUID> clans) {
+		List<List<UUID>> uuidChunks = Lists.partition(new ArrayList<>(clans), REQUEST_CHUNK_SIZE);
+		log.info("requesting data for {} clans ({} chunks)", clans.size(), uuidChunks.size());
+
+		List<AbstractClanData> clanDatas = new ArrayList<>(clans.size());
+
+		for (int i = 0; i < uuidChunks.size(); i++) {
+			try {
+				Thread.sleep(REQUEST_PADDING_TIME);
+			} catch (InterruptedException _) {
+			}
+
+			List<UUID> chunk = uuidChunks.get(i);
+			log.info("getting clan chunk {}/{}", i + 1, uuidChunks.size());
+
+			var listDataFutures = dataCache.clanData.get(new HashSet<>(chunk));
+			try {
+				CompletableFuture.allOf(listDataFutures.values().toArray(new CompletableFuture[0])).get(5, TimeUnit.MINUTES);
+			} catch (InterruptedException | ExecutionException e) {
+				log.error("ucd clan request failed", e);
+				continue;
+			} catch (TimeoutException e) {
+				log.error("ucd clan request timed out");
+				continue;
+			}
+
+			clanDatas.addAll(listDataFutures.values().stream()
+				.map(f -> f.join().value())
+				.toList());
+		}
+
+		return clanDatas;
 	}
 
 	public @NotNull JsonWriter serializePlayerLeaderboard(@NotNull JsonWriter w) throws IOException {
@@ -190,13 +236,13 @@ public final class UnofficialCloudData {
 	}
 
 	public @NotNull JsonWriter serializeClanList(@NotNull JsonWriter w) throws IOException {
-		Set<UUID> clanListGet = clanList.get();
+		var clanLookupGet = clanLookup.get();
 
 		w.beginObject();
 
 		serializeLastUpdated(w);
 		w.name("clans").beginArray();
-		for (UUID clan : clanListGet) {
+		for (UUID clan : clanLookupGet.keySet()) {
 			w.value(Util.getBase64Uuid(clan));
 		}
 		w.endArray();
