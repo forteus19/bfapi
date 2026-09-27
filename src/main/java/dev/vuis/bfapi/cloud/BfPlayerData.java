@@ -4,7 +4,6 @@ import com.boehmod.bflib.cloud.common.AbstractClanData;
 import com.boehmod.bflib.cloud.common.player.AbstractPlayerCloudData;
 import com.boehmod.bflib.cloud.common.player.PlayerDataContext;
 import com.boehmod.bflib.cloud.common.player.PlayerGroup;
-import com.boehmod.bflib.cloud.common.player.PlayerRank;
 import com.boehmod.bflib.cloud.common.player.PunishmentType;
 import com.boehmod.bflib.cloud.common.player.status.PlayerStatus;
 import com.google.gson.stream.JsonWriter;

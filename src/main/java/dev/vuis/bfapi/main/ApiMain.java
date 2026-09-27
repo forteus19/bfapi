@@ -1,13 +1,11 @@
 package dev.vuis.bfapi.main;
 
-import com.boehmod.bflib.cloud.common.player.achievement.CloudAchievements;
 import com.boehmod.bflib.cloud.connection.ConnectionStatus;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.vuis.bfapi.cloud.BfCloudPacketHandlers;
 import dev.vuis.bfapi.cloud.BfConnection;
-import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.data.BfApiConfig;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
