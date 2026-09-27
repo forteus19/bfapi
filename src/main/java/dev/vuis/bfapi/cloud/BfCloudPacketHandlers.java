@@ -17,7 +17,6 @@ import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedClanData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedCloudData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedInventory;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedInventoryMinimal;
-import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedItemDefault;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerData;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerDataSet;
 import com.boehmod.bflib.cloud.packet.common.requests.PacketRequestedPlayerStatusSet;
@@ -56,7 +55,6 @@ public final class BfCloudPacketHandlers {
 		registerPacketHandler(PacketRequestedCloudData.class, BfCloudPacketHandlers::requestedCloudData);
 		registerPacketHandler(PacketRequestedInventory.class, BfCloudPacketHandlers::requestedInventory);
 		registerPacketHandler(PacketRequestedInventoryMinimal.class, BfCloudPacketHandlers::requestedInventoryMinimal);
-		registerPacketHandler(PacketRequestedItemDefault.class, BfCloudPacketHandlers::requestedItemDefault);
 		registerPacketHandler(PacketRequestedPlayerData.class, BfCloudPacketHandlers::requestedPlayerData);
 		registerPacketHandler(PacketRequestedPlayerDataSet.class, BfCloudPacketHandlers::requestedPlayerDataSet);
 		registerPacketHandler(PacketRequestedPlayerStatusSet.class, BfCloudPacketHandlers::requestedPlayerStatusSet);
@@ -125,17 +123,19 @@ public final class BfCloudPacketHandlers {
 	}
 
 	private static void requestedInventory(PacketRequestedInventory packet, BfConnection connection) {
-		connection.dataCache.playerInventory.supply(packet.uuid(), inventory -> inventory.onReceiveSection(packet.stacks(), packet.section()));
+		connection.dataCache.playerInventory.supply(
+			packet.uuid(),
+			inventory -> inventory.putItems(BfPlayerInventory.itemMap(packet.stacks()))
+		);
 	}
 
 	private static void requestedInventoryMinimal(PacketRequestedInventoryMinimal packet, BfConnection connection) {
-		BfPlayerInventory inventory = new BfPlayerInventory();
-		inventory.onReceiveMinimalStacks(packet.stacks());
+		BfPlayerInventory inventory = new BfPlayerInventory(
+			BfPlayerInventory.itemMap(packet.stacks()),
+			packet.equipped(),
+			packet.showcased()
+		);
 		connection.dataCache.inventoryMinimal.complete(packet.uuid(), inventory);
-	}
-
-	private static void requestedItemDefault(PacketRequestedItemDefault packet, BfConnection connection) {
-		connection.dataCache.playerInventoryDefaults.complete(packet.uuid(), packet.itemStacks());
 	}
 
 	private static void requestedPlayerData(PacketRequestedPlayerData packet, BfConnection connection) {

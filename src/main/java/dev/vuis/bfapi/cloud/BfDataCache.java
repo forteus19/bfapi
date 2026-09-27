@@ -25,7 +25,6 @@ public class BfDataCache implements AutoCloseable {
 	public final IdentifiableCacheHolder<UUID, BfPlayerData> playerData;
 	public final AccumulatedCacheHolder<UUID, BfPlayerInventory> playerInventory;
 	public final SingletonCacheHolder<BfCloudData> cloudStats;
-	public final IdentifiableCacheHolder<UUID, Set<UUID>> playerInventoryDefaults;
 	public final IdentifiableCacheHolder<UUID, AbstractClanData> clanData;
 	public final IdentifiableCacheHolder<UUID, PublicPlayerStatus> playerStatus;
 	public final IdentifiableCacheHolder<UUID, BfPlayerInventory> inventoryMinimal;
@@ -53,10 +52,6 @@ public class BfDataCache implements AutoCloseable {
 		);
 		cloudStats = new SingletonCacheHolder<>(
 			singletonRequester(connection, RequestType.CLOUD_STATS)
-		);
-		playerInventoryDefaults = new IdentifiableCacheHolder<>(
-			identifiableRequester(connection, RequestType.PLAYER_INVENTORY_DEFAULTS),
-			Duration.ofMinutes(5)
 		);
 		clanData = new IdentifiableCacheHolder<>(
 			identifiableRequester(connection, RequestType.CLAN_DATA),
@@ -119,7 +114,6 @@ public class BfDataCache implements AutoCloseable {
 		playerData.purge();
 		playerInventory.purge();
 		cloudStats.purge();
-		playerInventoryDefaults.purge();
 		clanData.purge();
 		playerStatus.purge();
 		inventoryMinimal.purge();

@@ -1,6 +1,7 @@
 package dev.vuis.bfapi.cloud;
 
 import com.boehmod.bflib.cloud.common.AbstractClanData;
+import com.boehmod.bflib.cloud.common.player.AbstractCloudInventory;
 import com.boehmod.bflib.cloud.common.player.AbstractPlayerCloudData;
 import com.boehmod.bflib.cloud.common.player.PlayerDataContext;
 import com.boehmod.bflib.cloud.common.player.PlayerGroup;
@@ -26,7 +27,7 @@ import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 
 @Slf4j
-public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory, PlayerStatus> {
+public class BfPlayerData extends AbstractPlayerCloudData<AbstractCloudInventory<?>, PlayerStatus> {
 	private @Nullable PlayerGroup group;
 	private int maxFriends = 0;
 	private final Map<PunishmentType, Integer> pastPunishments = new EnumMap<>(PunishmentType.class);
@@ -179,7 +180,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory, Pla
 
 	@Override
 	@SuppressWarnings("DataFlowIssue")
-	protected @NotNull BfPlayerInventory createInventory() {
+	protected @NotNull AbstractCloudInventory<?> createInventory() {
 		// not used
 		return null;
 	}

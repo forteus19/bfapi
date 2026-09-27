@@ -82,7 +82,7 @@ public final class ArmoryStatsMain {
 		int skins = 0;
 		List<CloudItem<?>> dupes = new ObjectArrayList<>();
 
-		for (CloudItemStack stack : inventory.getItems()) {
+		for (CloudItemStack stack : inventory.items.values()) {
 			int id = stack.getItemId();
 			CloudItem<?> item = stack.getCloudItem(connection.registry);
 			if (item == null) {

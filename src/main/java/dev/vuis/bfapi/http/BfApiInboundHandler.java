@@ -69,9 +69,9 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			case "/api/v1/cloud_data" -> cloudData(ctx, msg);
 			case "/api/v1/player_data" -> playerData(ctx, msg, qs);
 			case "/api/v1/player_data/bulk" -> playerDataBulk(ctx, msg, qs);
-			case "/api/v1/player_inventory" -> playerInventory(ctx, msg, qs);
-//			case "/api/v1/player_inventory/equipped" -> playerInventoryEquipped(ctx, msg, qs);
-			case "/api/v1/player_inventory/equipped" -> BfApiError.ENDPOINT_REMOVED.response(ctx, msg);
+			case "/api/v1/player_inventory" -> playerInventory(ctx, msg, qs, BfPlayerInventory.Target.ALL);
+			case "/api/v1/player_inventory/equipped" -> playerInventory(ctx, msg, qs, BfPlayerInventory.Target.EQUIPPED);
+			case "/api/v1/player_inventory/showcased" -> playerInventory(ctx, msg, qs, BfPlayerInventory.Target.SHOWCASED);
 			case "/api/v1/player_matches" -> playerMatches(ctx, msg, qs);
 //			case "/api/v1/player_status" -> playerStatus(ctx, msg, qs);
 			case "/api/v1/player_status" -> BfApiError.ENDPOINT_REMOVED.response(ctx, msg);
@@ -339,7 +339,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		);
 	}
 
-	private HttpResponse playerInventory(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
+	private HttpResponse playerInventory(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs, BfPlayerInventory.Target target) {
 		BfConnection connection = connectionReference.get();
 
 		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
@@ -382,63 +382,13 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 		FullHttpResponse response = Responses.json(
 			ctx, msg, HttpResponseStatus.OK,
 			w -> data.value().serialize(
-				w, connection.registry, includeUuid, includeDetails,
+				w, target, connection.registry, includeUuid, includeDetails,
 				Util.unchecked(w2 -> {
 					w2.name("player").beginObject();
 					Serialization.playerStub(w2, connection.dataCache, uuid);
 					w2.endObject();
 				})
 			)
-		);
-		if (data.expires() != null) {
-			Responses.cacheHeaders(response, data.expires());
-		}
-		return response;
-	}
-
-	private HttpResponse playerInventoryEquipped(ChannelHandlerContext ctx, FullHttpRequest msg, QueryStringDecoder qs) {
-		BfConnection connection = connectionReference.get();
-
-		FullHttpResponse methodResponse = Responses.checkMethod(ctx, msg, HttpMethod.GET);
-		if (methodResponse != null) {
-			return methodResponse;
-		}
-		if (connection == null || !connection.isConnectedAndVerified()) {
-			return BfApiError.CLOUD_DISCONNECTED.response(ctx, msg);
-		}
-
-		Pair<UUID, BfApiError> uuidResult = uuidFromParams(qs);
-		if (uuidResult.right() != null) {
-			return uuidResult.right().response(ctx, msg);
-		}
-		UUID uuid = uuidResult.left();
-
-		ExpiryHolder<Set<UUID>> data;
-		try {
-			data = connection.dataCache.playerInventoryDefaults.get(uuid)
-				.get(10, TimeUnit.SECONDS);
-		} catch (ExecutionException | InterruptedException e) {
-			log.error("error while retrieving player inventory defaults", e);
-			return BfApiError.INTERNAL_ERROR.response(ctx, msg);
-		} catch (TimeoutException e) {
-			return BfApiError.PACKET_TIMEOUT.response(ctx, msg);
-		}
-
-		FullHttpResponse response = Responses.json(
-			ctx, msg,
-			HttpResponseStatus.OK,
-			w -> {
-				w.beginObject();
-				w.name("equipped").beginArray();
-				for (UUID equippedUuid : data.value()) {
-					w.value(Util.getBase64Uuid(equippedUuid));
-				}
-				w.endArray();
-				w.name("player").beginObject();
-				Serialization.playerStub(w, connection.dataCache, uuid);
-				w.endObject();
-				w.endObject();
-			}
 		);
 		if (data.expires() != null) {
 			Responses.cacheHeaders(response, data.expires());
@@ -686,7 +636,7 @@ public final class BfApiInboundHandler extends SimpleChannelInboundHandler<FullH
 			return BooleanObjectPair.of(false, null);
 		}
 		try {
-			return BooleanObjectPair.of(Boolean.parseBoolean(qs.parameters().get("stub").getFirst()), null);
+			return BooleanObjectPair.of(Boolean.parseBoolean(qs.parameters().get(key).getFirst()), null);
 		} catch (Exception e) {
 			return BooleanObjectPair.of(false, invalidError);
 		}
