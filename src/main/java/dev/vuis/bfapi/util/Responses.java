@@ -11,6 +11,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import java.io.BufferedWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,10 +32,15 @@ public final class Responses {
 
 	public static FullHttpResponse json(ChannelHandlerContext ctx, FullHttpRequest msg, HttpResponseStatus status, ThrowingConsumer<JsonWriter> writerConsumer) {
 		ByteBuf buf = ctx.alloc().buffer();
-		JsonWriter writer = new JsonWriter(new ByteBufWriter(buf, StandardCharsets.UTF_8));
+		JsonWriter writer = new JsonWriter(
+			new BufferedWriter(
+				new ByteBufWriter(buf, StandardCharsets.UTF_8)
+			)
+		);
 
 		try {
 			writerConsumer.accept(writer);
+			writer.flush();
 		} catch (Exception e) {
 			buf.release();
 			log.error("failed to serialize json", e);

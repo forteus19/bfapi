@@ -1,11 +1,13 @@
 package dev.vuis.bfapi.main;
 
+import com.boehmod.bflib.cloud.common.player.achievement.CloudAchievements;
 import com.boehmod.bflib.cloud.connection.ConnectionStatus;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.vuis.bfapi.cloud.BfCloudPacketHandlers;
 import dev.vuis.bfapi.cloud.BfConnection;
+import dev.vuis.bfapi.cloud.BfPlayerData;
 import dev.vuis.bfapi.cloud.unofficial.UnofficialCloudData;
 import dev.vuis.bfapi.data.BfApiConfig;
 import dev.vuis.bfapi.http.BfApiChannelInitializer;
@@ -55,12 +57,7 @@ public final class ApiMain {
 	static void main() {
 		BfApiConfig config = BfApiConfig.instance();
 
-		byte[] hardwareId = config.getBfHardwareId();
-		if (hardwareId.length != 32) {
-			log.warn("hardware ID is not 32 bytes (read {} bytes)", hardwareId.length);
-			log.warn("press enter to continue");
-			IO.readln();
-		}
+		Util.showConfigWarnings(config);
 
 		HttpClient authHttpClient = MinecraftAuth.createHttpClient(config.getHttpUserAgent());
 		JavaAuthManager authManager = AuthUtil.tryLoadAuthJson(authHttpClient, config.getTokensJsonPath());
@@ -94,10 +91,11 @@ public final class ApiMain {
 			config.getBfCloudAddress(),
 			config.getBfVersion(),
 			config.getBfVersionHash(),
-			hardwareId,
+			config.getBfHardwareId(),
 			authManager,
 			config.getHttpUserAgent(),
-			createCommandUserRetriever(config)
+			createCommandUserRetriever(config),
+			config.getContactDiscordUsername()
 		);
 		connection.connect();
 

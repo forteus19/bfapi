@@ -12,6 +12,7 @@ import com.boehmod.bflib.cloud.encryption.AESDecryptionHandler;
 import com.boehmod.bflib.cloud.encryption.AESEncryptionHandler;
 import com.boehmod.bflib.cloud.encryption.EncryptionUtils;
 import com.boehmod.bflib.cloud.packet.IPacket;
+import com.boehmod.bflib.cloud.packet.common.PacketClientState;
 import com.boehmod.bflib.cloud.packet.primitives.ClientHeartBeatPacket;
 import com.boehmod.bflib.cloud.packet.primitives.ClientLoginPacket;
 import com.boehmod.bflib.cloud.packet.primitives.ClientLogoutPacket;
@@ -100,6 +101,7 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 	private final JavaAuthManager mcAuth;
 	private final String userAgent;
 	private final Function<String, UUID> commandUserRetriever;
+	private final @Nullable String discordUsername;
 
 	@Getter
 	private @Nullable Channel channel = null;
@@ -112,7 +114,8 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 		byte[] hardwareId,
 		JavaAuthManager mcAuth,
 		String userAgent,
-		Function<String, UUID> commandUserRetriever
+		Function<String, UUID> commandUserRetriever,
+		@Nullable String discordUsername
 	) {
 		this.address = address;
 		this.version = version;
@@ -121,6 +124,7 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 		this.mcAuth = mcAuth;
 		this.userAgent = userAgent;
 		this.commandUserRetriever = commandUserRetriever;
+		this.discordUsername = discordUsername;
 	}
 
 	public void connect() {
@@ -244,6 +248,8 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 //					() -> reconnect(true),
 //					30, TimeUnit.MINUTES
 //				);
+
+				sendClientStateMessages();
 			}
 			case CLOSED -> {
 				reconnect(false);
@@ -253,6 +259,21 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 		for (BiConsumer<BfConnection, ConnectionStatus> statusListener : statusListeners) {
 			statusListener.accept(this, status);
 		}
+	}
+
+	private void sendClientStateMessages() {
+		sendPacket(new PacketClientState(
+			1,
+			"This is an AUTOMATED account running bfapi (https://github.com/forteus19/bfapi)")
+		);
+		sendPacket(new PacketClientState(
+			1,
+			discordUsername != null
+				? "Discord username if contact is needed: " + discordUsername
+				: "The person running this account did not give a discord username."
+		));
+
+		log.info("sent client state messages");
 	}
 
 	private void heartbeat() {
@@ -421,6 +442,7 @@ public class BfConnection extends Connection<BfPlayerData> implements AutoClosea
 	@Override
 	public void sendPacket(@NotNull IPacket packet) {
 		writeAndFlush(channelOrThrow(), packet);
+		log.trace("sent packet {}", packet);
 	}
 
 	@Override

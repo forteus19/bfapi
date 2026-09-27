@@ -53,7 +53,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory, Pla
 		}
 		w.endArray();
 		w.name("exp").value(getExp());
-		w.name("rank").value(PlayerRank.getRankFromEXP(getExp()).getTitle());
+		w.name("rank").value(getRank().getTitle());
 		w.name("trophies").value(getTrophies());
 		w.name("prestige").value(getPrestigeLevel());
 		w.name("match_karma").value(getMatchKarma());
@@ -71,6 +71,7 @@ public class BfPlayerData extends AbstractPlayerCloudData<BfPlayerInventory, Pla
 		w.name("back_stabs").value(getBackStabs());
 		w.name("head_shots").value(getHeadShots());
 		w.name("no_scopes").value(getNoScopes());
+		w.name("heal_assists").value(getHealAssists());
 		w.name("first_bloods").value(getFirstBloods());
 		w.name("fire_kills").value(getFireKills());
 		w.name("highest_kill_streak").value(getKillStreak());

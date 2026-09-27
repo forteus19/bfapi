@@ -46,6 +46,6 @@ bin/
 /registry_*.json
 /*.txt
 *.env
-/bfapi_auth_tokens.json
+/bfapi_auth_tokens*.json
 /*.db*
 /command_users.json

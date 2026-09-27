@@ -8,6 +8,7 @@ import dev.vuis.bfapi.cloud.BfConnection;
 import dev.vuis.bfapi.cloud.BfPlayerInventory;
 import dev.vuis.bfapi.data.BfApiConfig;
 import dev.vuis.bfapi.util.AuthUtil;
+import dev.vuis.bfapi.util.Util;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -30,6 +31,8 @@ public final class ArmoryStatsMain {
 	@SneakyThrows
 	static void main() {
 		BfApiConfig config = BfApiConfig.instance();
+
+		Util.showConfigWarnings(config);
 
 		HttpClient authHttpClient = MinecraftAuth.createHttpClient(config.getHttpUserAgent());
 		JavaAuthManager authManager = AuthUtil.tryLoadAuthJson(authHttpClient, config.getTokensJsonPath());
@@ -59,7 +62,8 @@ public final class ArmoryStatsMain {
 			config.getBfHardwareId(),
 			authManager,
 			config.getHttpUserAgent(),
-			_ -> null
+			_ -> null,
+			config.getContactDiscordUsername()
 		);
 		connection.connect();
 

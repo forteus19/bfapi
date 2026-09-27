@@ -3,6 +3,8 @@ package dev.vuis.bfapi.data;
 import dev.vuis.bfapi.util.Util;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -22,6 +24,8 @@ public final class BfApiConfig {
 	private final @NotNull String httpUserAgent;
 	@Getter
 	private final @NotNull Path tokensJsonPath;
+	@Getter
+	private final @Nullable String contactDiscordUsername;
 	@Getter
 	private final @NotNull InetSocketAddress bfCloudAddress;
 	@Getter
@@ -49,6 +53,7 @@ public final class BfApiConfig {
 		apiPort = getOrDefault("API_PORT", 19190);
 		httpUserAgent = getOrDefault("HTTP_USER_AGENT", "bfapi/1.0-SNAPSHOT");
 		tokensJsonPath = getOrDefault("TOKENS_JSON_PATH", Path::of, () -> Path.of("bfapi_auth_tokens.json"));
+		contactDiscordUsername = getOrNull("CONTACT_DISCORD_USERNAME");
 		bfCloudAddress = getOrDefault(
 			"BF_CLOUD_ADDRESS",
 			s -> Util.parseInetSocketAddress(s, DEFAULT_BF_CLOUD_PORT),
@@ -71,5 +76,19 @@ public final class BfApiConfig {
 			instance = new BfApiConfig();
 		}
 		return instance;
+	}
+
+	public List<String> check() {
+		List<String> warningMessages = new ArrayList<>(2);
+
+		if (contactDiscordUsername == null) {
+			warningMessages.add("discord username for contact not set");
+		}
+
+		if (bfHardwareId.length != 32) {
+			warningMessages.add("hardware ID is not 32 bytes (found " + bfHardwareId.length + " bytes)");
+		}
+
+		return warningMessages;
 	}
 }

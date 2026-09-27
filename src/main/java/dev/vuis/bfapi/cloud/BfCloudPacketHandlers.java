@@ -100,7 +100,7 @@ public final class BfCloudPacketHandlers {
 	}
 
 	private static void notificationFromCloud(PacketNotificationFromCloud packet, BfConnection connection) {
-		log.info("cloud notification: {}", packet.message());
+		log.info("cloud notification:\n=== {}\n- {}", packet.tone(), packet.message());
 	}
 
 	private static void requestedClanData(PacketRequestedClanData packet, BfConnection connection) {

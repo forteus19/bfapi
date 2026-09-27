@@ -5,6 +5,7 @@ import com.google.gson.FormattingStyle;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.vuis.bfapi.cloud.BfPlayerData;
+import dev.vuis.bfapi.data.BfApiConfig;
 import java.net.InetSocketAddress;
 import java.net.URLEncoder;
 import java.nio.ByteBuffer;
@@ -17,9 +18,11 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+@Slf4j
 public final class Util {
 	private static final Base64.Encoder BASE64_ENCODER_NO_PADDING = Base64.getEncoder().withoutPadding();
 	public static final int PRESTIGE_EXP = PlayerRank.getTotalRequiredEXPForRank(PlayerRank.GENERAL);
@@ -166,5 +169,15 @@ public final class Util {
 			}
 		}
 		return OptionalInt.empty();
+	}
+
+	public static void showConfigWarnings(BfApiConfig config) {
+		List<String> warnings = config.check();
+
+		for (String warning : warnings) {
+			log.warn(warning);
+			log.warn("press enter to continue");
+			IO.readln();
+		}
 	}
 }
